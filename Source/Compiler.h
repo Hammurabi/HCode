@@ -21,7 +21,6 @@ namespace HCode
 
         explicit FOpcodeInstruction(std::string Value = "");
         FOpcodeInstruction(const FOpcodeInstruction &O);
-
         std::string ToString(unsigned int S = 0);
     };
 
@@ -38,6 +37,7 @@ namespace HCode
         FType(const FType &O);
         FType(std::string N, unsigned char P = 0, bool C = false, unsigned char R = 0);
         FType(FToken Token);
+
         bool operator ==(const FType &O) const;
         unsigned int Size();
         std::string MovArg();
@@ -57,6 +57,7 @@ namespace HCode
 
         FAssembledFunction();
         FAssembledFunction(const FAssembledFunction &O);
+
         void Append(FOpcodeInstruction Opcode);
         std::string ToString(unsigned int T = 0);
     };
@@ -76,6 +77,7 @@ namespace HCode
 
         FMethod();
         FMethod(const FMethod &O);
+
         void Append(FOpcodeInstruction OP);
     };
 
@@ -86,16 +88,17 @@ namespace HCode
         unsigned int    FieldAddress;
 
         FField();
+        FField(const FField &O);
     };
 
     struct FLocalField
     {
         std::string     Name;
         FType           Type;
-
         unsigned int    FieldAddress;
 
         FLocalField();
+        FLocalField(const FLocalField &O);
 
         bool IsPrimitive();
 

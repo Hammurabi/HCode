@@ -230,7 +230,11 @@ void HCode::FMethod::Append(HCode::FOpcodeInstruction OP)
 HCode::FField::FField() : Type("")
 {
 }
+HCode::FField::FField(const FField &O) : Name(O.Name), Type(O.Type), FieldAddress(O.FieldAddress)
+{
+}
 HCode::FLocalField::FLocalField() : Type("") {}
+HCode::FLocalField::FLocalField(const FLocalField &O) : Name(O.Name), Type(O.Type), FieldAddress(O.FieldAddress) {}
 bool HCode::FLocalField::IsPrimitive()
 {
     return Type.IsPrimitive();
