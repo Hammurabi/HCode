@@ -4,6 +4,7 @@ project(HCode)
 set(CMAKE_CXX_STANDARD 14)
 
 add_executable(HCode
+        Source/MainTest.cpp
         Source/Tokens.cpp Source/Tokens.h
         Source/Lexer.cpp Source/Lexer.h
         Source/Parser.cpp Source/Parser.h
