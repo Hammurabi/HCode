@@ -78,28 +78,49 @@ int main() {
     using namespace HCode;
 
     std::string Test       = ""
-                             "ArithmeticPlus::int(A: int, B: int)\n"
+                             "ArithmeticIPlus::int(A: int, B: int)\n"
                              "Res: int = A + B\n"
                              "print(Res)\n"
                              "return Res\n"
                              "end\n"
-                             "ArithmeticSub::int(A: int, B: int)\n"
+                             "ArithmeticISub::int(A: int, B: int)\n"
                              "Res: int = A - B\n"
                              "print(Res)\n"
                              "return Res\n"
                              "end\n"
-                             "ArithmeticMul::int(A: int, B: int)\n"
+                             "ArithmeticIMul::int(A: int, B: int)\n"
                              "Res: int = A * B\n"
                              "print(Res)\n"
                              "return Res\n"
                              "end\n"
-                             "ArithmeticDiv::int(A: int, B: int)\n"
+                             "ArithmeticIDiv::int(A: int, B: int)\n"
                              "Res: int = A / B\n"
                              "print(Res)\n"
                              "return Res\n"
                              "end\n"
                              "ArithmeticMod::int(A: int, B: int)\n"
-                             "Res: int = B % A\n"
+                             "Res: int = A % B\n"
+                             "print(Res)\n"
+                             "return Res\n"
+                             "end\n"
+
+                             "ArithmeticFPlus::float(A: float, B: float)\n"
+                             "Res: float = A + B\n"
+                             "print(Res)\n"
+                             "return Res\n"
+                             "end\n"
+                             "ArithmeticFSub::float(A: float, B: float)\n"
+                             "Res: float = A - B\n"
+                             "print(Res)\n"
+                             "return Res\n"
+                             "end\n"
+                             "ArithmeticFMul::float(A: float, B: float)\n"
+                             "Res: float = A * B\n"
+                             "print(Res)\n"
+                             "return Res\n"
+                             "end\n"
+                             "ArithmeticFDiv::float(A: float, B: float)\n"
+                             "Res: float = A / B\n"
                              "print(Res)\n"
                              "return Res\n"
                              "end\n"
@@ -133,5 +154,23 @@ int main() {
     State->NewScript(Test);
     auto Result = State->GetResult("Main", FArgs());
     std::cout << Result->AsInt() << std::endl;
+
+#define IParams(x, y) long long IA = x; long long IB = y;
+#define FParams(x, y) long double FA = x; long double FB = y;
+    for (int i = 0; i < 10; i ++)
+    {
+        IParams(5+i, 6+i)
+        FParams(5.+float(i), 6.+float(i))
+        assert(State->GetResult("ArithmeticIPlus", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA + IB));
+        assert(State->GetResult("ArithmeticISub", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA - IB));
+        assert(State->GetResult("ArithmeticIMul", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA * IB));
+        assert(State->GetResult("ArithmeticIDiv", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA / IB));
+        assert(State->GetResult("ArithmeticMod", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA % IB));
+
+        assert(State->GetResult("ArithmeticFPlus", FArgs().Append(State->MakeFloat(FA)).Append(State->MakeFloat(FB)))->AsFloat() == (FA + FB));
+        assert(State->GetResult("ArithmeticFSub", FArgs().Append(State->MakeFloat(FA)).Append(State->MakeFloat(FB)))->AsFloat() == (FA - FB));
+        assert(State->GetResult("ArithmeticFMul", FArgs().Append(State->MakeFloat(FA)).Append(State->MakeFloat(FB)))->AsFloat() == (FA * FB));
+        assert(State->GetResult("ArithmeticFDiv", FArgs().Append(State->MakeFloat(FA)).Append(State->MakeFloat(FB)))->AsFloat() == (FA / FB));
+    }
     return 0;
 }
