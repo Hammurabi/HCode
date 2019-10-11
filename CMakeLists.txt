@@ -8,4 +8,4 @@ add_executable(HCode
         Source/Lexer.cpp Source/Lexer.h
         Source/Parser.cpp Source/Parser.h
         Source/Compiler.cpp Source/Compiler.h
-        Source/VM.cpp Source/VM.h)
+        Source/VM.cpp Source/VM.h Source/Tests/MainTests.cpp)
