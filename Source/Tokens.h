@@ -35,9 +35,15 @@
 
 namespace HCode
 {
+    enum ETokenType
+    {
+    };
     struct FLexToken
     {
         std::string     Value;
+        /**
+         * TODO: use enum instead of string.
+         */
         std::string     Type;
         unsigned int    Line;
         unsigned int    Offset;
