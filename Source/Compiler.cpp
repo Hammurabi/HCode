@@ -63,6 +63,16 @@ void HCode::LongDecay(HCode::FOpcodeInstruction &Out, long Value)
     else
         for (int i = 0; i < 8; i ++) Out.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[7 - i])));
 }
+void HCode::IntDecay(HCode::FOpcodeInstruction &Out, int Value)
+{
+    bool BigEndian  = BigEndianMachine();
+    unsigned char *IntegerMap    = (unsigned char *) &Value;
+
+    if (BigEndian)
+        for (int i = 0; i < 4; i ++) Out.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[i])));
+    else
+        for (int i = 0; i < 4; i ++) Out.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[3 - i])));
+}
 void HCode::UndecayFW(unsigned char *Out, const unsigned char *Value)
 {
     bool BigEndian  = BigEndianMachine();
@@ -71,6 +81,15 @@ void HCode::UndecayFW(unsigned char *Out, const unsigned char *Value)
         for (int i = 0; i < 8; i ++) Out[i] = Value[i];
     else
         for (int i = 0; i < 8; i ++) Out[i] = Value[7 - i];
+}
+void HCode::UndecayQW(unsigned char *Out, const unsigned char *Value)
+{
+    bool BigEndian  = BigEndianMachine();
+
+    if (BigEndian)
+        for (int i = 0; i < 4; i ++) Out[i] = Value[i];
+    else
+        for (int i = 0; i < 4; i ++) Out[i] = Value[3 - i];
 }
 void HCode::UndecayDW(unsigned char *Out, const unsigned char *Value)
 {
@@ -274,6 +293,8 @@ HCode::FGlobalScope::FGlobalScope() {
 
 HCode::FGlobalScope::FGlobalScope(const FGlobalScope &O): Scripts(O.Scripts) {}
 
+#include <iostream>
+
 void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode::FLocalField> &LocalFieldMap,
                                HCode::FAssembledScript &Script, HCode::FMethod &Function,
                                std::stack<std::string> &TempStack, bool MemberAccess = false)
@@ -284,6 +305,32 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
 
         if (Function.ReturnType.RealType() != "void" && Function.ReturnType.RealType() != "nil" && Function.ReturnType.RealType() != "Nil" & Function.ReturnType.RealType() != "NIL")
             throw std::runtime_error(Error(Token.Token.Line, std::string("function '") + Function.Name + std::string("' has return type of '") + Function.ReturnType.RealType() + std::string("'.")));
+    }
+    else
+    if (Token.Token.Type == "if")
+    {
+        FToken Condition    = Token.GetByType("parenthesis");
+        FToken Body         = Token.GetByType("body");
+
+        for (auto &Child : Condition.Children) CompileInstruction(Child, LocalFieldMap, Script, Function, TempStack);
+
+        //TODO: uncomment this operation.
+//        if (TempStack.size() == 0 || TempStack.top() != "bool")
+//            throw std::runtime_error(Error(Token.Token.Line, std::string("if condition must return a boolean.'")));
+
+        FAssembledFunction Func = Function.AssembledFunction;
+        Function.AssembledFunction.Instructions.clear();
+        FOpcodeInstruction IfInstruction("if");
+        FOpcodeInstruction IfInstructionBody("if_body");
+
+        for (auto &Child : Body.Children) CompileInstruction(Child, LocalFieldMap, Script, Function, TempStack);
+        IfInstructionBody.Children.insert(IfInstructionBody.Children.end(), Function.AssembledFunction.Instructions.begin(), Function.AssembledFunction.Instructions.end());
+        Function.AssembledFunction = Func;
+        IfInstruction.Children.push_back(IfInstructionBody);
+
+        Function.Append(IfInstruction);
+
+        TempStack.pop();
     }
     else
     if (Token.Token.Type == "return_value")
@@ -596,6 +643,13 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
         unsigned char TypeB = ArithmeticCode(TypeNameB, IsPointer);
         TempStack.pop();
 
+        bool IsRelational = Token.Token.Value == "==" ||
+                            Token.Token.Value == "!=" ||
+                            Token.Token.Value == "<" ||
+                            Token.Token.Value == ">" ||
+                            Token.Token.Value == "<=" ||
+                            Token.Token.Value == ">=";
+
         std::string OperatorType = TypeNameB + Token.Token.Value + TypeNameA;
         std::string OperatorBaseType = BaseType(TypeNameB) + Token.Token.Value + BaseType(TypeNameA);
 
@@ -608,15 +662,18 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
 //                if ((TypeA != 1 || TypeB != 1) && IsPointer)
 //                    throw std::runtime_error(Error(Token.Token.Line, std::string("cannot perform arithmetic operation '") + Token.Token.Value + " (" + Token.Token.Type + std::string("' on [WORD *] and [DOUBLE].")));
 
-        if (Token.Token.Value == "==")
-        {
-            Function.Append(FOpcodeInstruction("equals"));
-            return;
-        }
 
         if ((TypeA == 3 && TypeB == 1) || (TypeB == 3 && TypeA == 1))
         {
+            if (Token.Token.Value == "==")
+                Function.Append(FOpcodeInstruction("equals"));
+            else
             Function.Append(FOpcodeInstruction("i" + Token.Token.Type));
+
+
+            if (IsRelational)
+                TempStack.push("bool");
+            else
             if (TypeA == 3)
                 TempStack.push(TypeNameA);
             else
@@ -625,14 +682,35 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
         else
         if (OperatorBaseType == "int" + Token.Token.Value + "int")
         {
+            if (Token.Token.Value == "==")
+                Function.Append(FOpcodeInstruction("equals"));
+            else
             Function.Append(FOpcodeInstruction("i" + Token.Token.Type));
+
+            if (IsRelational)
+                TempStack.push("bool");
+            else
             TempStack.push("int");
         }
         else
         if (OperatorBaseType == "float" + Token.Token.Value + "float")
         {
+            if (Token.Token.Value == "==")
+                Function.Append(FOpcodeInstruction("equals"));
+            else
             Function.Append(FOpcodeInstruction("f" + Token.Token.Type));
+
+            if (IsRelational)
+                TempStack.push("bool");
+            else
             TempStack.push("float");
+        }
+        else
+        if (OperatorBaseType == "bool" + Token.Token.Value + "bool")
+        {
+            Function.Append(FOpcodeInstruction("i" + Token.Token.Type));
+
+            TempStack.push("bool");
         }
         else
         {

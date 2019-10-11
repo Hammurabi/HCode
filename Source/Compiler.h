@@ -169,8 +169,10 @@ namespace HCode
     };
 
     bool BigEndianMachine();
+    void IntDecay(FOpcodeInstruction &Out, int Value);
     void LongDecay(FOpcodeInstruction &Out, long Value);
     void UndecayFW(unsigned char *Out, const unsigned char *Value);
+    void UndecayQW(unsigned char *Out, const unsigned char *Value);
     void UndecayDW(unsigned char *Out, const unsigned char *Value);
 
     std::string Error(unsigned int Line, std::string Message);

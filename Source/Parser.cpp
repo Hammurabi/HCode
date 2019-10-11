@@ -234,6 +234,50 @@ HCode::Parse(std::vector<HCode::FToken> &Tokens, std::vector<HCode::FLexToken> I
 {
     while (Input.size() > 0)
     {
+        if (Input[0].Value == "if")
+        {
+            FLexToken IfToken = Input[0];
+            IfToken.Type = "import";
+            Input.erase(Input.begin());
+
+            if (Input.size() == 0)
+                throw(std::runtime_error("if requires condition '" + std::to_string(IfToken.Line) + "'."));
+
+            std::vector<FLexToken> Condition;
+            while ( Input.size() > 0 && Input[0].Value != "{" && Input[0].Line == IfToken.Line )
+            {
+                Condition.push_back(* Input.begin().base());
+                Input.erase(Input.begin());
+            }
+
+            if (Input.size() == 0)
+                throw(std::runtime_error("if requires body '" + std::to_string(IfToken.Line) + "'."));
+
+            if (Input.begin()->Value != "{")
+                throw(std::runtime_error("if requires body (missing '{') '" + std::to_string(IfToken.Line) + "'."));
+
+            std::vector<FLexToken> BodyTokes;
+            OC("braces", "{", "}", BodyTokes, Input);
+
+            FToken IfToke(IfToken);
+            FToken ConditionToke(IfToken);
+            FToken BodyToke(IfToken);
+            IfToke.Token.Value = "if";
+            IfToke.Token.Type = "if";
+            ConditionToke.Token.Value = "parenthesis";
+            ConditionToke.Token.Type = "parenthesis";
+            BodyToke.Token.Value = "body";
+            BodyToke.Token.Type = "body";
+
+            Parse(ConditionToke.Children, Condition, true);
+            Parse(BodyToke.Children, BodyTokes);
+
+            IfToke.Children.push_back(ConditionToke);
+            IfToke.Children.push_back(BodyToke);
+
+            Tokens.push_back(IfToke);
+        }
+        else
         if (Input[0].Type == "import")
         {
             FLexToken ImportToken = Input[0];
@@ -1189,7 +1233,7 @@ HCode::Parse(std::vector<HCode::FToken> &Tokens, std::vector<HCode::FLexToken> I
         }
 
         else
-        if (IEQ("+") || IEQ("-") || IEQ("*") || IEQ("/") || IEQ("%"))
+        if (IEQ("+") || IEQ("-") || IEQ("*") || IEQ("/") || IEQ("%") || IEQ(">") || IEQ("<") || IEQ(">=") || IEQ("<=") || IEQ("==") || IEQ("!="))
         {
             if (!RightHand)
             {

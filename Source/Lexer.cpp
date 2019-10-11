@@ -431,7 +431,7 @@ void HCode::Lex(std::vector<HCode::FLexToken> &Tokens, const std::string &Script
                 Token.Type = "cmple";
             }
             else
-            if ((Token.Value + Current) == ">")
+            if ((Token.Value + Current) == ">=")
             {
                 Token.Value += Current;
                 Token.Type = "cmpge";

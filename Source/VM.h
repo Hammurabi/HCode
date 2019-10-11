@@ -219,6 +219,9 @@ namespace HCode
         IADD, ISUB, IDIV, IMUL, MOD, ICMPL, ICMPG, ICMPLE, ICMPGE,
         FADD, FSUB, FDIV, FMUL, FCMPL, FCMPG, FCMPLE, FCMPGE,
         EQUAL,
+
+        IF,
+        JUMP,
     };
 
     struct FSymbolTable
@@ -249,7 +252,7 @@ namespace HCode
         }
     };
 
-    std::vector<unsigned char> GenerateInstructions(FAssembledFunction Func, FSymbolTable &SymbolTable, FAssembledScript &Script);
+    std::vector<unsigned char> GenerateInstructions(FAssembledFunction &Func, FSymbolTable &SymbolTable, FAssembledScript &Script);
 
     template <typename T1, typename T2>
     struct FTuple{

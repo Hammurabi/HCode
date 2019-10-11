@@ -140,7 +140,7 @@ void HCode::FLexToken::Evaluate(unsigned int Oset)
         if (Value == "<=")
             Type = "cmple";
         else
-        if (Value == ">")
+        if (Value == ">=")
             Type = "cmpge";
         else
             throw (std::runtime_error("unsupported symbol type '" + Value + "'."));

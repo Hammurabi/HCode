@@ -140,6 +140,10 @@ int main() {
                              ""
                              "Main:: void()\n"
                              "TestS: FStruct\n"
+                             ""
+                             "if 16 >= 16 {\n"
+                             "print(344)\n"
+                             "}\n"
                              "TestS.Field1 = 12\n"
                              "TestS.Field2 = 22\n"
                              "Test1: FStruct = TestS + 5\n"
@@ -154,11 +158,11 @@ int main() {
     AddNatives(State);
     State->NewScript(Test);
     auto Result = State->GetResult("Main", FArgs());
-    std::cout << Result->AsInt() << std::endl;
+    std::cout << Result->AsInt() << std::endl << std::endl << std::endl << std::endl;
 
 #define IParams(x, y) long long IA = x; long long IB = y;
 #define FParams(x, y) long double FA = x; long double FB = y;
-    for (int i = 0; i < 10; i ++)
+    for (int i = 0; i < 2; i ++)
     {
         IParams(5+i, 6+i)
         FParams(5.+float(i), 6.+float(i))

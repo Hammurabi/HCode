@@ -29,7 +29,7 @@
 #include "VM.h"
 #include <iostream>
 
-std::vector<unsigned char> HCode::GenerateInstructions(HCode::FAssembledFunction Func, HCode::FSymbolTable &SymbolTable,
+std::vector<unsigned char> HCode::GenerateInstructions(HCode::FAssembledFunction &Func, HCode::FSymbolTable &SymbolTable,
                                                        HCode::FAssembledScript &Script)
 {
     if (Func.OpcodeInstructions.size() == 0)
@@ -151,6 +151,24 @@ std::vector<unsigned char> HCode::GenerateInstructions(HCode::FAssembledFunction
                 Func.OpcodeInstructions.push_back(std::stoi(Instruction.Children[7].ValueString));
             }
             else
+            if ("if" == Instruction.ValueString) {
+                Func.OpcodeInstructions.push_back(EOpcode::IF);
+                FAssembledFunction IfFunc;
+                IfFunc.Instructions = Instruction.Children[0].Children;
+                auto Instructions = GenerateInstructions(IfFunc, SymbolTable, Script);
+                unsigned int Len = Instructions.size();
+
+                FOpcodeInstruction LenInstruction("len");
+                IntDecay(LenInstruction, Len);
+
+                Func.OpcodeInstructions.push_back(std::stoi(LenInstruction.Children[0].ValueString));
+                Func.OpcodeInstructions.push_back(std::stoi(LenInstruction.Children[1].ValueString));
+                Func.OpcodeInstructions.push_back(std::stoi(LenInstruction.Children[2].ValueString));
+                Func.OpcodeInstructions.push_back(std::stoi(LenInstruction.Children[3].ValueString));
+
+                Func.OpcodeInstructions.insert(Func.OpcodeInstructions.end(), Instructions.begin(), Instructions.end());
+            }
+            else
             if ("iplus" == Instruction.ValueString)
                 Func.OpcodeInstructions.push_back(EOpcode::IADD);
             else
@@ -223,6 +241,33 @@ std::vector<unsigned char> HCode::GenerateInstructions(HCode::FAssembledFunction
             if ("return" == Instruction.ValueString)
                 Func.OpcodeInstructions.push_back(EOpcode::RETURN);
             else
+            if ("icmpg" == Instruction.ValueString)
+                Func.OpcodeInstructions.push_back(EOpcode::ICMPG);
+            else
+            if ("icmpl" == Instruction.ValueString)
+                Func.OpcodeInstructions.push_back(EOpcode::ICMPL);
+            else
+            if ("fcmpg" == Instruction.ValueString)
+                Func.OpcodeInstructions.push_back(EOpcode::FCMPG);
+            else
+            if ("fcmpl" == Instruction.ValueString)
+                Func.OpcodeInstructions.push_back(EOpcode::FCMPL);
+            else
+            if ("icmpge" == Instruction.ValueString)
+                Func.OpcodeInstructions.push_back(EOpcode::ICMPGE);
+            else
+            if ("icmple" == Instruction.ValueString)
+                Func.OpcodeInstructions.push_back(EOpcode::ICMPLE);
+            else
+            if ("fcmpge" == Instruction.ValueString)
+                Func.OpcodeInstructions.push_back(EOpcode::FCMPGE);
+            else
+            if ("fcmple" == Instruction.ValueString)
+                Func.OpcodeInstructions.push_back(EOpcode::FCMPLE);
+            else
+            if ("equals" == Instruction.ValueString)
+                Func.OpcodeInstructions.push_back(EOpcode::EQUAL);
+            else
                 throw (std::runtime_error("opcode not valid '" + Instruction.ValueString + "'."));
         }
     }
@@ -291,6 +336,20 @@ void HCode::FState::GetResultFromOps(std::vector<unsigned char> Instructions, HC
                 UndecayFW(FWORD_REG, Instructions.data() + Index + 1);
                 Scope.Pop()->SetField(*((long *) FWORD_REG), V);
                 Index += 8;
+            }
+                break;
+            case EOpcode::IF:
+            {
+#ifdef HC_OUTPUT_CODES
+                std::cerr<< "IF" << std::endl;
+#endif
+                if (Index + 4 >= Instructions.size())
+                    throw (std::runtime_error("corrupt instruction set provided. 'if'."));
+                UndecayQW(FWORD_REG, Instructions.data() + Index + 1);
+                Index += 4;
+
+                if (Scope.Pop()->AsInt() == 0)
+                    Index += *((unsigned int *) FWORD_REG);
             }
                 break;
             case EOpcode::NEWINSTANCE:
