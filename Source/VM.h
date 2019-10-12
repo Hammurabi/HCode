@@ -42,7 +42,7 @@
 namespace HCode
 {
     typedef long long   HCInteger;
-    typedef long double HCFloat;
+    typedef double      HCFloat;
 
     union FPrimitive
     {
@@ -62,6 +62,9 @@ namespace HCode
         inline virtual FHCObject    GetField(unsigned int Field) { return nullptr; }
         inline virtual void         SetField(unsigned int Field, FHCObject Value) {}
         inline virtual std::string  ToString() { return ""; }
+        inline virtual FHCObject    Copy() { return nullptr; }
+        inline virtual void         Append(FHCObject Object) { }
+        inline virtual void         Remove(FHCObject Object) { }
     private:
     };
 
@@ -69,12 +72,14 @@ namespace HCode
     {
     public:
         FPrimitiveObject(FPrimitive Prim) : Primitive(Prim) {}
-        inline void        SetValue(FPrimitive Prim) override { Primitive = Prim; }
-        inline HCInteger   AsInt() override { return Primitive.Integer; }
-        inline HCFloat     AsFloat() override { return Primitive.Float; }
-        inline FHCObject   GetField(unsigned int Field) override { return nullptr; }
-        inline void SetField(unsigned int Field, FHCObject Value) override { }
-        inline std::string  ToString() override { return std::to_string(AsInt()); }
+        inline void                 SetValue(FPrimitive Prim) override { Primitive = Prim; }
+        inline HCInteger            AsInt() override { return Primitive.Integer; }
+        inline HCFloat              AsFloat() override { return Primitive.Float; }
+        inline FHCObject            GetField(unsigned int Field) override { return nullptr; }
+        inline void                 SetField(unsigned int Field, FHCObject Value) override { }
+        inline std::string          ToString() override { return std::to_string(AsInt()); }
+        inline FHCObject            Copy() override { return FHCObject(new FPrimitiveObject(FPrimitive(Primitive))); }
+        inline void                 Append(FHCObject Object) override { }
     private:
         FPrimitive  Primitive;
     };
@@ -84,12 +89,14 @@ namespace HCode
     public:
         inline FPrimitiveObjectString(std::string S) : String(S) {
         }
-        inline void         SetValue(FPrimitive Prim) override {}
-        inline HCInteger    AsInt() override { return 0; }
-        inline HCFloat      AsFloat() override { return 0.; }
-        inline FHCObject    GetField(unsigned int Field) override { return nullptr; }
-        inline void         SetField(unsigned int Field, FHCObject Value) override {}
-        inline std::string  ToString() override { return String; }
+        inline void                 SetValue(FPrimitive Prim) override {}
+        inline HCInteger            AsInt() override { return 0; }
+        inline HCFloat              AsFloat() override { return 0.; }
+        inline FHCObject            GetField(unsigned int Field) override { return nullptr; }
+        inline void                 SetField(unsigned int Field, FHCObject Value) override {}
+        inline std::string          ToString() override { return String; }
+        inline FHCObject            Copy() override { return FHCObject(new FPrimitiveObjectString(std::string(String))); }
+        inline void                 Append(FHCObject Object) override { }
     private:
         std::string String;
     };
@@ -108,14 +115,36 @@ namespace HCode
         inline FHCObject    GetField(unsigned int Field) override { if (Field >= Fields.size()) return FHCObject(new FPrimitiveObject({0x0000000000000000})); return Fields[Field]; }
         inline void         SetField(unsigned int Field, FHCObject Value) override { if (Field >= Fields.size()) return; Fields[Field] = Value; }
         inline std::string  ToString() override { return "obj"; }
+        inline void         Append(FHCObject Object) override { Fields.push_back(Object); }
+        inline void         Remove(FHCObject Object) { HCInteger Index = Object->AsInt(); if (Index < Fields.size()) Fields.erase(Fields.begin() + Index); }
     private:
         std::vector<FHCObject> Fields;
+    };
+
+    class FStack : public std::stack<FHCObject>
+    {
+    public:
+        inline void Swap(unsigned long I)
+        {
+            std::vector<FHCObject> Objects;
+            auto B = c[size() - I];
+            unsigned long Index = size() - I;
+            for (unsigned long X = Index; X < size() - 1; X ++)
+                c[X] = c[X + 1];
+            c[size() - 1] = B;
+//            auto T = top();
+//            auto B = c[size() - I];
+//            c[size() - I] = T;
+//            c[size() - 1] = B;
+        }
+    private:
+        using std::stack<FHCObject>::c;
     };
 
     class FScope
     {
     public:
-        inline FScope(std::string N, std::stack<FHCObject> &S, FScope *Parent = nullptr) : FuncName(N), Stack(S), ParentScope(Parent) {}
+        inline FScope(std::string N, FStack &S, FScope *Parent = nullptr) : FuncName(N), Stack(S), ParentScope(Parent) {}
         inline void Cache(unsigned char L)
         {
             ElCache[L] = Pop();
@@ -128,14 +157,17 @@ namespace HCode
         {
             Stack.push(Object);
         }
+        inline void Swap(unsigned long Index)
+        {
+            Stack.Swap(Index + 1);
+        }
 
         inline FHCObject Peek()
         {
             return Stack.top();
         }
 
-        inline FHCObject Pop()
-        {
+        inline FHCObject Pop() {
             auto Object = Stack.top();
             Stack.pop();
             return Object;
@@ -162,7 +194,7 @@ namespace HCode
     private:
         std::string             FuncName;
         FScope                  *ParentScope;
-        std::stack<FHCObject>   &Stack;
+        FStack                  &Stack;
         FHCObject               ElCache[256];
     };
 
@@ -219,8 +251,16 @@ namespace HCode
         IADD, ISUB, IDIV, IMUL, MOD, ICMPL, ICMPG, ICMPLE, ICMPGE,
         FADD, FSUB, FDIV, FMUL, FCMPL, FCMPG, FCMPLE, FCMPGE,
         EQUAL,
+        NOTEQUAL,
 
         IF,
+        ICAST,//cast to int
+        FCAST,//cast to float
+        DYNMK,//invoke a function dynamically (from function pointer on the stack)
+        DUP,//duplicate the top element of the stack
+        SWP,//duplicate the top element of the stack
+        LOOP,//loop
+        IFNOT_RETURN,//if the condition is not true, then break a loop
         JUMP,
     };
 
@@ -263,9 +303,11 @@ namespace HCode
         inline FTuple(const FTuple<T1, T2> &O) : First(O.First), Second(O.Second) {}
     };
 
+
+
     class FState{
     public:
-        inline FAssembledScript NewScript(std::string HumanReadable)
+        inline FAssembledScript NewScript(std::string HumanReadable, FAssembledScript NativeData = FAssembledScript())
         {
             std::vector<FLexToken>  LexedTokens;
             std::vector<FToken>     ParsedTokens;
@@ -273,9 +315,18 @@ namespace HCode
             Lex(LexedTokens, HumanReadable);
             Parse(ParsedTokens, LexedTokens);
             FAssembledScript Script(this);
+            for (auto &Field : NativeData.Fields) Script.Fields[Field.first] = Field.second;
+            for (auto &Funcn : NativeData.Functions) Script.Functions[Funcn.first] = Funcn.second;
+            for (auto &Struc : NativeData.Structs) Script.Structs[Struc.first] = Struc.second;
             Compile(ParsedTokens, GlobalScope, Script);
 
             return Script;
+        }
+        inline void AddNativeLib(std::string Name, FAssembledScript NativeLib)
+        {
+            if (GlobalScope.Scripts.find(Name) != GlobalScope.Scripts.end())
+                throw std::runtime_error("redeclaration of library '" + Name + "'.");
+            GlobalScope.Scripts[Name] = NativeLib;
         }
         inline FHCObject MakeInt(HCInteger I)
         {
@@ -310,7 +361,7 @@ namespace HCode
             std::vector<unsigned char> Instructions = GenerateInstructions(Tuple.Second.AssembledFunction, Table, Tuple.First);
 
 
-            std::stack<FHCObject> TheStack;
+            FStack TheStack;
             FScope TheScope(Function, TheStack);
 
             for (auto Arg : Arguments.Get())
@@ -339,7 +390,7 @@ namespace HCode
 
         inline FHCObject GetResult(std::vector<unsigned char> Opcodes, FAssembledScript &AS, FScope &TheScope)
         {
-            GetResultFromOps(Opcodes, AS, TheScope);
+            GetResultFromOps(Opcodes, 0, Opcodes.size(), AS, TheScope);
 
             if (TheScope.Size() > 0)
                 return TheScope.Pop();
@@ -351,11 +402,13 @@ namespace HCode
         {
             Table.Insert(Method);
         }
-        virtual void GetResultFromOps(std::vector<unsigned char> Opcodes, FAssembledScript &AS, FScope &FunScope);
+        virtual void GetResultFromOps(std::vector<unsigned char> Opcodes, unsigned int InstructionBegin, unsigned int InstructionEnd, FAssembledScript &AS, FScope &FunScope, bool IsLoop = false);
     private:
         FGlobalScope GlobalScope;
         FSymbolTable Table;
     };
+
+    void AddNatives(FState *State);
 }
 
 

@@ -41,7 +41,7 @@ namespace HCode
     void RearrangeRightHanded(std::vector<FToken> &InOut);
     void RearrangeLeftHanded(std::vector<FToken> &InOut);
     void RearrangeTokens(std::vector<FToken> &InOut, bool RightHanded, bool InBody);
-    void Parse(std::vector<FToken> &Tokens, std::vector<FLexToken> Input, bool RightHand = false, bool FuncDecl = false, bool FuncCall = false, bool OnlyOnce = false, bool InBody = false);
+    void Parse(std::vector<FToken> &Tokens, std::vector<FLexToken> Input, bool RightHand = false, bool FuncDecl = false, bool FuncCall = false, bool OnlyOnce = false, bool InBody = false, bool AllowComma = false);
 }
 
 #endif //RUGE_PARSER_H

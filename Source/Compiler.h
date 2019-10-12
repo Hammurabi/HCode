@@ -72,7 +72,7 @@ namespace HCode
         std::string RealType();
     };
 
-
+    FType MakeType(std::string Type);
 
     struct FAssembledFunction
     {
@@ -89,7 +89,8 @@ namespace HCode
         std::string ToString(unsigned int T = 0);
     };
 
-    typedef void (*NativeCallback) (FState&, const FSymbolTable&, FScope&);
+    class FAssembledScript;
+    typedef void (*NativeCallback) (FState&, FSymbolTable&, FScope&, FAssembledScript &Script);
 
     struct FMethod
     {

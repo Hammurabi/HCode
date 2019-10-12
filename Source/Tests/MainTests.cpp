@@ -32,150 +32,90 @@
 #include "../Compiler.h"
 #include "../VM.h"
 #include <vector>
+#include <cmath>
 #include <iostream>
 
-void AddNatives(std::shared_ptr<HCode::FState> State)
+#include <fstream>
+
+std::string GetTest(int numArgs, const char ** args)
 {
-    using namespace HCode;
+    std::ifstream file;
+    std::string   data = "";
 
-    FMethod PrintLong;
-    PrintLong.Name = "print_long";
-    PrintLong.IsNative = true;
-    PrintLong.NativeCallback = [] (FState& State, const FSymbolTable& Table, FScope& Scope) {
-        std::cout << Scope.Pop()->AsInt() << std::endl;
-    };
+    file.open(args[numArgs - 1], std::ifstream::in);
 
-    State->AddFunction(PrintLong);
+    std::string str;
+    while (std::getline(file, str))
+        data += (str + "\n");
 
-    FMethod PrintFloat;
-    PrintFloat.Name = "print_float";
-    PrintFloat.IsNative = true;
-    PrintFloat.NativeCallback = [] (FState& State, const FSymbolTable& Table, FScope& Scope) {
-        std::cout << Scope.Pop()->AsFloat() << std::endl;
-    };
-
-    State->AddFunction(PrintFloat);
-
-    FMethod PrintString;
-    PrintString.Name = "print_string";
-    PrintString.IsNative = true;
-    PrintString.NativeCallback = [] (FState& State, const FSymbolTable& Table, FScope& Scope) {
-        std::cout << Scope.Pop()->ToString().c_str() << std::endl;
-    };
-
-    State->AddFunction(PrintString);
-
-    FMethod PrintObject;
-    PrintObject.Name = "print_address";
-    PrintObject.IsNative = true;
-    PrintObject.NativeCallback = [] (FState& State, const FSymbolTable& Table, FScope& Scope) {
-        std::cout << Scope.Pop()->ToString().c_str() << std::endl;
-    };
-
-    State->AddFunction(PrintObject);
+    return data;
 }
 
-int main() {
+int main(int numArgs, const char ** args) {
     using namespace HCode;
 
-    std::string Test       = ""
-                             "ArithmeticIPlus::int(A: int, B: int)\n"
-                             "Res: int = A + B\n"
-                             "print(Res)\n"
-                             "return Res\n"
-                             "end\n"
-                             "ArithmeticISub::int(A: int, B: int)\n"
-                             "Res: int = A - B\n"
-                             "print(Res)\n"
-                             "return Res\n"
-                             "end\n"
-                             "ArithmeticIMul::int(A: int, B: int)\n"
-                             "Res: int = A * B\n"
-                             "print(Res)\n"
-                             "return Res\n"
-                             "end\n"
-                             "ArithmeticIDiv::int(A: int, B: int)\n"
-                             "Res: int = A / B\n"
-                             "print(Res)\n"
-                             "return Res\n"
-                             "end\n"
-                             "ArithmeticMod::int(A: int, B: int)\n"
-                             "Res: int = A % B\n"
-                             "print(Res)\n"
-                             "return Res\n"
-                             "end\n"
-
-                             "ArithmeticFPlus::float(A: float, B: float)\n"
-                             "Res: float = A + B\n"
-                             "print(Res)\n"
-                             "return Res\n"
-                             "end\n"
-                             "ArithmeticFSub::float(A: float, B: float)\n"
-                             "Res: float = A - B\n"
-                             "print(Res)\n"
-                             "return Res\n"
-                             "end\n"
-                             "ArithmeticFMul::float(A: float, B: float)\n"
-                             "Res: float = A * B\n"
-                             "print(Res)\n"
-                             "return Res\n"
-                             "end\n"
-                             "ArithmeticFDiv::float(A: float, B: float)\n"
-                             "Res: float = A / B\n"
-                             "print(Res)\n"
-                             "return Res\n"
-                             "end\n"
-                             ""
-                             "struct FStruct\n"
-                             "Field1: int\n"
-                             "Field2: int\n"
-                             "end\n"
-                             ""
-                             "operator FStruct(FStruct + int)\n"
-                             "Result: FStruct\n"
-                             "Result.Field1 = A.Field1 + B\n"
-                             "Result.Field2 = A.Field2 + B\n"
-                             "return Result\n"
-                             "end\n"
-                             ""
-                             "Main:: void()\n"
-                             "TestS: FStruct\n"
-                             ""
-                             "if 16 >= 16 {\n"
-                             "print(344)\n"
-                             "}\n"
-                             "TestS.Field1 = 12\n"
-                             "TestS.Field2 = 22\n"
-                             "Test1: FStruct = TestS + 5\n"
-                             "print(TestS.Field1)\n"
-                             "print(TestS.Field2)\n"
-                             "print(Test1.Field1)\n"
-                             "print(Test1.Field2)\n"
-                             "end\n"
-                             "";
+    std::string Test       = GetTest(numArgs, args);
 
     std::shared_ptr<FState> State(new FState());
-    AddNatives(State);
+    HCode::AddNatives(State.get());
+
+    FMethod TestNative;
+    TestNative.Name = "quick_incremental_loop";
+    TestNative.IsNative = true;
+    TestNative.NativeCallback = [] (FState& State, FSymbolTable& Table, FScope& Scope, FAssembledScript &Script) {
+        auto Func = Scope.Pop();
+        auto To = Scope.Pop();
+        auto From = Scope.Pop();
+
+        FScope NScope = Scope.Child(Table.Functions[Func->AsInt()].Name);
+        auto X = Table.Functions[Func->AsInt()];
+
+        if (!X.IsNative)
+        {
+            auto Instructions = HCode::GenerateInstructions(X.AssembledFunction, Table, Script);
+
+            for (HCInteger i = From->AsInt(); i < To->AsInt(); i ++)
+            {
+                Scope.Push(State.MakeInt(i));
+                State.GetResultFromOps(Instructions, 0, Instructions.size(), Script, NScope);
+            }
+        }
+        else
+        {
+            for (HCInteger i = From->AsInt(); i < To->AsInt(); i ++)
+            {
+                Scope.Push(State.MakeInt(i));
+                X.NativeCallback(State, Table, Scope, Script);
+            }
+        }
+    };
+
+    FAssembledScript NativeData;
+    NativeData.Functions[TestNative.Name] = TestNative;
+
+
+//    State->AddNativeLib("StringLib", NativeData);
+
     State->NewScript(Test);
     auto Result = State->GetResult("Main", FArgs());
     std::cout << Result->AsInt() << std::endl << std::endl << std::endl << std::endl;
 
 #define IParams(x, y) long long IA = x; long long IB = y;
 #define FParams(x, y) long double FA = x; long double FB = y;
-    for (int i = 0; i < 2; i ++)
-    {
-        IParams(5+i, 6+i)
-        FParams(5.+float(i), 6.+float(i))
-        assert(State->GetResult("ArithmeticIPlus", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA + IB));
-        assert(State->GetResult("ArithmeticISub", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA - IB));
-        assert(State->GetResult("ArithmeticIMul", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA * IB));
-        assert(State->GetResult("ArithmeticIDiv", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA / IB));
-        assert(State->GetResult("ArithmeticMod", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA % IB));
-
-        assert(State->GetResult("ArithmeticFPlus", FArgs().Append(State->MakeFloat(FA)).Append(State->MakeFloat(FB)))->AsFloat() == (FA + FB));
-        assert(State->GetResult("ArithmeticFSub", FArgs().Append(State->MakeFloat(FA)).Append(State->MakeFloat(FB)))->AsFloat() == (FA - FB));
-        assert(State->GetResult("ArithmeticFMul", FArgs().Append(State->MakeFloat(FA)).Append(State->MakeFloat(FB)))->AsFloat() == (FA * FB));
-        assert(State->GetResult("ArithmeticFDiv", FArgs().Append(State->MakeFloat(FA)).Append(State->MakeFloat(FB)))->AsFloat() == (FA / FB));
-    }
+//    for (int i = 0; i < 2; i ++)
+//    {
+//        IParams(5+i, 6+i)
+//        FParams(5.+float(i), 6.+float(i))
+//        assert(State->GetResult("ArithmeticIPlus", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA + IB));
+//        assert(State->GetResult("ArithmeticISub", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA - IB));
+//        assert(State->GetResult("ArithmeticIMul", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA * IB));
+//        assert(State->GetResult("ArithmeticIDiv", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA / IB));
+//        assert(State->GetResult("ArithmeticMod", FArgs().Append(State->MakeInt(IA)).Append(State->MakeInt(IB)))->AsInt() == (IA % IB));
+//
+//        assert(State->GetResult("ArithmeticFPlus", FArgs().Append(State->MakeFloat(FA)).Append(State->MakeFloat(FB)))->AsFloat() == (FA + FB));
+//        assert(State->GetResult("ArithmeticFSub", FArgs().Append(State->MakeFloat(FA)).Append(State->MakeFloat(FB)))->AsFloat() == (FA - FB));
+//        assert(State->GetResult("ArithmeticFMul", FArgs().Append(State->MakeFloat(FA)).Append(State->MakeFloat(FB)))->AsFloat() == (FA * FB));
+//        assert(State->GetResult("ArithmeticFDiv", FArgs().Append(State->MakeFloat(FA)).Append(State->MakeFloat(FB)))->AsFloat() == (FA / FB));
+//    }
     return 0;
 }

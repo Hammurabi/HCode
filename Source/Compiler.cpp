@@ -162,10 +162,10 @@ HCode::FType::FType(HCode::FToken Token)
         Pointer = std::stoi(Token.GetByType("is_reference").Token.Value);
     if (Token.GetByType("is_function").Token.Value.size() > 0)
         Function = true;
-    if (Token.GetByType("is_function").Token.Value.size() > 0)
+    if (Token.GetByType("is_array").Token.Value.size() > 0)
     {
         IsArray = 1;
-        Array = std::stol(Token.GetByType("is_function").Token.Value);
+        Array = std::stol(Token.GetByType("is_array").Token.Value);
     }
 }
 
@@ -305,6 +305,69 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
 
         if (Function.ReturnType.RealType() != "void" && Function.ReturnType.RealType() != "nil" && Function.ReturnType.RealType() != "Nil" & Function.ReturnType.RealType() != "NIL")
             throw std::runtime_error(Error(Token.Token.Line, std::string("function '") + Function.Name + std::string("' has return type of '") + Function.ReturnType.RealType() + std::string("'.")));
+    }
+    else
+    if (Token.Token.Type == "for")
+    {
+//        Token(for, for, 153)
+//        Token(parenthesis, parenthesis, 153)
+//        Token(statement, statement, 153)
+//        Token(int, field, 153)
+//        Token(x, name, 153)
+//        Token(0, is_pointer, 153)
+//        Token(0, is_reference, 153)
+//        Token(=, equals, 153)
+//        Token(0, int, 153)
+//        Token(statement, statement, 153)
+//        Token(x, identifier, 153)
+//        Token(12, int, 153)
+//        Token(<, cmpl, 153)
+//        Token(statement, statement, 153)
+//        Token(x, identifier, 153)
+//        Token(=, equals, 153)
+//        Token(right, right, 153)
+//        Token(x, identifier, 153)
+//        Token(1, int, 153)
+//        Token(+, plus, 153)
+//        Token(body, body, 153)
+//        Token(print, call, 154)
+//        Token((, parenthesisopen, 154)
+//        Token(x, identifier, 154)
+
+        std::map<std::string, HCode::FLocalField> OriginalMap(LocalFieldMap);
+        FToken Parenthesis  = Token.GetByType("parenthesis");
+        FToken Body         = Token.GetByType("body");
+        CompileInstruction(Parenthesis.Children[0], LocalFieldMap, Script, Function, TempStack, false);
+
+        FAssembledFunction Func = Function.AssembledFunction;
+        Function.AssembledFunction.Instructions.clear();
+
+
+        FOpcodeInstruction IfInstruction("if_loop");
+        FOpcodeInstruction IfInstructionCond("if_cond");
+        FOpcodeInstruction IfInstructionBody("if_body");
+
+        CompileInstruction(Parenthesis.Children[1], LocalFieldMap, Script, Function, TempStack, false);
+        IfInstructionCond.Children.insert(IfInstructionCond.Children.end(), Function.AssembledFunction.Instructions.begin(), Function.AssembledFunction.Instructions.end());
+        Function.AssembledFunction.Instructions.clear();
+
+        for (auto &Child : Body.Children) CompileInstruction(Child, LocalFieldMap, Script, Function, TempStack);
+        CompileInstruction(Parenthesis.Children[2], LocalFieldMap, Script, Function, TempStack, false);
+
+        IfInstructionBody.Children.insert(IfInstructionBody.Children.end(), Function.AssembledFunction.Instructions.begin(), Function.AssembledFunction.Instructions.end());
+
+        Function.AssembledFunction = Func;
+        IfInstruction.Children.push_back(IfInstructionCond);
+        IfInstruction.Children.push_back(IfInstructionBody);
+
+        Function.Append(IfInstruction);
+
+
+        LocalFieldMap.clear();
+        LocalFieldMap.insert(OriginalMap.begin(), OriginalMap.end());
+
+//        std::cerr << IfInstruction.ToString() << std::endl;
+//        exit(0);
     }
     else
     if (Token.Token.Type == "if")
@@ -451,15 +514,15 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
     else
     if (Token.Token.Type == "double")
     {
-        FOpcodeInstruction Push("push");
+        FOpcodeInstruction Push("fpush");
         bool BigEndian              = BigEndianMachine();
         double Integer              = std::stod(Token.Token.Value);
         unsigned char *IntegerMap   = (unsigned char *) &Integer;
 
-        if (BigEndian)
-            for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[i])));
-        else
-            for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[7 - i])));
+//        if (BigEndian)
+//            for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[i])));
+//        else
+//            for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[7 - i])));
         Push.Children.push_back(FOpcodeInstruction(Token.Token.Value));
         Function.Append(Push);
         TempStack.push("float");
@@ -565,60 +628,75 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
         }
         else
         {
-            if (LocalFieldMap.find(Token.Token.Value) == LocalFieldMap.end())
+            auto FuncResult = Script.Functions.find(Token.Token.Value);
+            auto FildResult = LocalFieldMap.find(Token.Token.Value);
+
+            if (FildResult == LocalFieldMap.end() && FuncResult == Script.Functions.end())
                 throw std::runtime_error(Error(Token.Token.Line, std::string("reference to undeclared variable '") + Token.Token.Value + std::string("'.")));
 
-            FLocalField Field   = LocalFieldMap[Token.Token.Value];
-            unsigned int Loc    = Field.FieldAddress;
-            std::string RTyp    = Field.RealType();
-
-            if (Token.GetByType("equals").Token.Value.size() > 0)
+            if (FildResult != LocalFieldMap.end())
             {
-                for (auto &Token0 : Token.GetByType("equals").Children)
-                    CompileInstruction(Token0, LocalFieldMap, Script, Function, TempStack);
+                FLocalField Field   = LocalFieldMap[Token.Token.Value];
+                unsigned int Loc    = Field.FieldAddress;
+                std::string RTyp    = Field.RealType();
 
-
-                if (TempStack.size() == 0)
-                    throw std::runtime_error(Error(Token.Token.Line, std::string("reference stack is empty, trying to assign value to '") + Field.Name + std::string("'.")));
-                if (RTyp != TempStack.top())
-                    throw std::runtime_error(Error(Token.Token.Line, std::string("field of type '") + RTyp + std::string("' does not match assignment of '" + TempStack.top() + "'.")));
-
-                TempStack.pop();
-
-                switch (Loc)
+                if (Token.GetByType("equals").Token.Value.size() > 0)
                 {
-                    case 0:     Function.Append(FOpcodeInstruction("cache0")); break;
-                    case 1:     Function.Append(FOpcodeInstruction("cache1")); break;
-                    case 2:     Function.Append(FOpcodeInstruction("cache2")); break;
-                    case 3:     Function.Append(FOpcodeInstruction("cache3")); break;
-                    case 4:     Function.Append(FOpcodeInstruction("cache4")); break;
-                    default:
-                        FOpcodeInstruction Uncache = FOpcodeInstruction("cache");
-                        Uncache.Children.push_back(FOpcodeInstruction(std::to_string((unsigned char) Loc)));
-                        Function.Append(Uncache);
-                        break;
+                    for (auto &Token0 : Token.GetByType("equals").Children)
+                        CompileInstruction(Token0, LocalFieldMap, Script, Function, TempStack);
+
+
+                    if (TempStack.size() == 0)
+                        throw std::runtime_error(Error(Token.Token.Line, std::string("reference stack is empty, trying to assign value to '") + Field.Name + std::string("'.")));
+                    if (RTyp != TempStack.top())
+                        throw std::runtime_error(Error(Token.Token.Line, std::string("field of type '") + RTyp + std::string("' does not match assignment of '" + TempStack.top() + "'.")));
+
+                    TempStack.pop();
+
+                    switch (Loc)
+                    {
+                        case 0:     Function.Append(FOpcodeInstruction("cache0")); break;
+                        case 1:     Function.Append(FOpcodeInstruction("cache1")); break;
+                        case 2:     Function.Append(FOpcodeInstruction("cache2")); break;
+                        case 3:     Function.Append(FOpcodeInstruction("cache3")); break;
+                        case 4:     Function.Append(FOpcodeInstruction("cache4")); break;
+                        default:
+                            FOpcodeInstruction Uncache = FOpcodeInstruction("cache");
+                            Uncache.Children.push_back(FOpcodeInstruction(std::to_string((unsigned char) Loc)));
+                            Function.Append(Uncache);
+                            break;
+                    }
                 }
+                else
+                {
+                    switch (Loc)
+                    {
+                        case 0:     Function.Append(FOpcodeInstruction("uncache0")); break;
+                        case 1:     Function.Append(FOpcodeInstruction("uncache1")); break;
+                        case 2:     Function.Append(FOpcodeInstruction("uncache2")); break;
+                        case 3:     Function.Append(FOpcodeInstruction("uncache3")); break;
+                        case 4:     Function.Append(FOpcodeInstruction("uncache4")); break;
+                        default:
+                            FOpcodeInstruction Uncache = FOpcodeInstruction("uncache");
+                            Uncache.Children.push_back(FOpcodeInstruction(std::to_string((unsigned char) Loc)));
+                            Function.Append(Uncache);
+                            break;
+                    }
+                }
+
+                TempStack.push(LocalFieldMap[Token.Token.Value].RealType());
             }
             else
             {
-                switch (Loc)
-                {
-                    case 0:     Function.Append(FOpcodeInstruction("uncache0")); break;
-                    case 1:     Function.Append(FOpcodeInstruction("uncache1")); break;
-                    case 2:     Function.Append(FOpcodeInstruction("uncache2")); break;
-                    case 3:     Function.Append(FOpcodeInstruction("uncache3")); break;
-                    case 4:     Function.Append(FOpcodeInstruction("uncache4")); break;
-                    default:
-                        FOpcodeInstruction Uncache = FOpcodeInstruction("uncache");
-                        Uncache.Children.push_back(FOpcodeInstruction(std::to_string((unsigned char) Loc)));
-                        Function.Append(Uncache);
-                        break;
-                }
+                if (Token.GetByType("equals").Token.Value.size() > 0)
+                    throw std::runtime_error(Error(Token.Token.Line, std::string("cannot assign value to a function. '") + Token.Token.Value + std::string("'.")));
+
+                FOpcodeInstruction FuncPTR("function_reference");
+                FuncPTR.Children.push_back(FOpcodeInstruction(FuncResult->second.Name));
+
+                Function.Append(FuncPTR);
+                TempStack.push(FuncResult->second.Signature);
             }
-
-//                std::cout <<  Token.Token.Value.c_str() << " " << LocalFieldMap[Token.Token.Value].RealType().c_str() << std::endl;
-
-            TempStack.push(LocalFieldMap[Token.Token.Value].RealType());
         }
     }
     else
@@ -668,6 +746,9 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
             if (Token.Token.Value == "==")
                 Function.Append(FOpcodeInstruction("equals"));
             else
+            if (Token.Token.Value == "!=")
+                Function.Append(FOpcodeInstruction("not_equals"));
+            else
             Function.Append(FOpcodeInstruction("i" + Token.Token.Type));
 
 
@@ -685,6 +766,9 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
             if (Token.Token.Value == "==")
                 Function.Append(FOpcodeInstruction("equals"));
             else
+            if (Token.Token.Value == "!=")
+                Function.Append(FOpcodeInstruction("not_equals"));
+            else
             Function.Append(FOpcodeInstruction("i" + Token.Token.Type));
 
             if (IsRelational)
@@ -698,6 +782,9 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
             if (Token.Token.Value == "==")
                 Function.Append(FOpcodeInstruction("equals"));
             else
+            if (Token.Token.Value == "!=")
+                Function.Append(FOpcodeInstruction("not_equals"));
+            else
             Function.Append(FOpcodeInstruction("f" + Token.Token.Type));
 
             if (IsRelational)
@@ -708,7 +795,7 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
         else
         if (OperatorBaseType == "bool" + Token.Token.Value + "bool")
         {
-            Function.Append(FOpcodeInstruction("i" + Token.Token.Type));
+            Function.Append(FOpcodeInstruction(Token.Token.Type));
 
             TempStack.push("bool");
         }
@@ -726,35 +813,6 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
             else
                 throw std::runtime_error(Error(Token.Token.Line, std::string("operator '") + OperatorType + std::string("' is not overloaded.")));
         }
-
-
-
-//                if (TypeA == 1)
-//                    Function.Append(FOpcodeInstruction("i" + Token.Token.Type));
-//                else
-//                if (TypeA == 2)
-//                    Function.Append(FOpcodeInstruction("f" + Token.Token.Type));
-//                else
-//                if (TypeA == 3)
-//                {
-//
-//                    auto Result = Script.Functions.find(OperatorType);
-//                    if (Result != Script.Functions.end())
-//                    {
-//                        FOpcodeInstruction Call("call");
-//                        Call.Children.push_back(FOpcodeInstruction(OperatorType));
-//                        Function.Append(Call);
-//
-//                        TempStack.push(Result->second.ReturnType.RealType());
-//                    }
-//                    else
-//                        throw std::runtime_error(Error(Token.Token.Line, std::string("operator '") + OperatorType + std::string("' is not overloaded.")));
-//                }
-
-//                if (TypeA == 1)
-//                    TempStack.push("int");
-//                else if (TypeA == 2)
-//                    TempStack.push("float");
     }
     else
     if (Token.Token.Type == "staticcast")
@@ -810,144 +868,249 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
     if (Token.Token.Type == "call")
     {
         std::string FunctionName = Token.Token.Value;
+        bool CompilerSpecific = FunctionName == "make_copy" || FunctionName == "throw" || FunctionName == "sqrt" || FunctionName == "pow" || FunctionName == "sin" || FunctionName == "cos" || FunctionName == "tan" || FunctionName == "shrink_heap"  || FunctionName == "delete" || FunctionName == "print" || FunctionName == "gc" || FunctionName == "free" || FunctionName == "throw_uncaught" || FunctionName == "malloc" || FunctionName == "calloc" || FunctionName == "sizeof" || FunctionName == "assert" || FunctionName == "memcpy";
 
-        bool CompilerSpecific = FunctionName == "throw" || FunctionName == "shrink_heap"  || FunctionName == "delete" || FunctionName == "print" || FunctionName == "gc" || FunctionName == "free" || FunctionName == "throw_uncaught" || FunctionName == "malloc" || FunctionName == "calloc" || FunctionName == "sizeof" || FunctionName == "assert" || FunctionName == "memcpy";
-
-        if (!CompilerSpecific)
+        //this function is a function pointer
+        if (MemberAccess && ! CompilerSpecific)
         {
-            auto FindResult = Script.Functions.find(FunctionName);
-            if (FindResult == Script.Functions.end())
-                throw std::runtime_error(Error(Token.Token.Line, std::string("function '") + Token.Token.Value + " (" + std::string(")' could not be found.")));
-        }
+            if (TempStack.size() == 0)
+                throw std::runtime_error(Error(Token.Token.Line, std::string("reference stack is empty, cannot find member '") + Token.Token.Value + std::string("'.")));
 
-        if (FunctionName != "sizeof")
-            for (auto &Toke : Token.GetByType("parenthesisopen").Children)
-                CompileInstruction(Toke, LocalFieldMap, Script, Function, TempStack);
+            std::string RealType = BaseType(TempStack.top());
+            TempStack.pop();
+            bool Pointer = false;
 
-        if (CompilerSpecific)
-        {
-            FOpcodeInstruction FunCall("call");
-            FunCall.Children.push_back(FOpcodeInstruction(FunctionName));
+            if (ArithmeticCode(RealType, Pointer) != 4)
+                throw std::runtime_error(Error(Token.Token.Line, std::string("cannot do a memberaccess operation on primitive type '") + RealType + "' to access member '" + Token.Token.Value + std::string("'.")));
 
-            if ( FunctionName == "assert" )
-            {
-                std::string FailedText  = "Assertion failed, line " + std::to_string(Token.Token.Line) + ".";
+            auto Result = Script.Structs.find(RealType);
 
-                FOpcodeInstruction Push("push");
-                bool BigEndian  = BigEndianMachine();
-                long Integer     = Token.Token.Line;
-                unsigned char *IntegerMap    = (unsigned char *) &Integer;
+            if (Result == Script.Structs.end())
+                throw std::runtime_error(Error(Token.Token.Line, std::string("type '") + RealType + "' cannot be founded, cannot access member '" + Token.Token.Value + std::string("'.")));
 
-                if (BigEndian)
-                    for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[i])));
-                else
-                    for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[7 - i])));
+            auto MemberResult = Result->second.Fields.find(Token.Token.Value);
 
-                Function.Append(Push);
-                Function.Append(FunCall);
-                TempStack.push(Function.ReturnType.RealType());
-            }
+            if (MemberResult == Result->second.Fields.end())
+                throw std::runtime_error(Error(Token.Token.Line, std::string("reference to undeclared member field '") + Token.Token.Value + std::string("' in type '") + RealType + "'."));
+
+            unsigned int Location = MemberResult->second.FieldAddress;
+
+            if (Token.GetByType("equals").Token.Value.size() > 0)
+                throw std::runtime_error(Error(Token.Token.Line, std::string("equals cannot be used on function call '") + Token.Token.Value + std::string("' in type '") + RealType + "'."));
             else
-            if ( FunctionName == "print" )
             {
-                auto Tokes = Token.GetByType("parenthesisopen").Children;
-//                        if (Tokes.size() != 1)
-//                            throw std::runtime_error(Error(Token.Token.Line, std::string("print takes one argument.")));
+                Function.Append(FOpcodeInstruction("dup"));
 
-                std::string Type = TempStack.top();
-                TempStack.pop();
-
-                if (Type == "int")
-                    FunCall.Children[0].ValueString = "print_long";
-                else
-                if (Type == "float")
-                    FunCall.Children[0].ValueString = "print_float";
-                else
-                if (Type == "word*")
-                    FunCall.Children[0].ValueString = "print_string";
-                else
-                    FunCall.Children[0].ValueString = "print_address";
-
-                TempStack.push("void");
-                Function.Append(FunCall);
-            }
-            else
-            if ( FunctionName == "sizeof" )
-            {
-                auto Tokes = Token.GetByType("parenthesisopen").Children;
-                if (Tokes.size() != 1)
-                    throw std::runtime_error(Error(Token.Token.Line, std::string("sizeof takes one argument.")));
-
-                if (Tokes[0].Token.Type != "identifier")
-                    throw std::runtime_error(Error(Token.Token.Line, std::string("sizeof takes one argument (TypeName).")));
-
-                std::string Type = Tokes[0].Token.Value;
-                FType TType(Type);
-                long Integer    = 0;
-
-                if (TType.IsPrimitive())
-                    Integer = TType.Size();
-                else
+                FOpcodeInstruction MOV("getn");
+                LongDecay(MOV, Location);
+                Function.Append(MOV);
+                std::string funcreturn = "";
+                std::string rlfunctype = MemberResult->second.Type.RealType();
+                for (int x = 0; x < rlfunctype.size(); x ++)
                 {
-                    auto Iterator = Script.Structs.find(Type);
-                    if (Script.Structs.end() == Iterator)
-                        throw std::runtime_error(Error(Token.Token.Line, std::string("provided typename '" + Type + "' does not exist.")));
-                    Integer = Iterator->second.Size;
+                    if (rlfunctype[x] == '(')
+                        break;
+                    else
+                        funcreturn += rlfunctype[x];
                 }
 
-                FOpcodeInstruction Push("push");
-                bool BigEndian  = BigEndianMachine();
-                unsigned char *IntegerMap    = (unsigned char *) &Integer;
+                unsigned int S = TempStack.size();
+                for (auto &Toke : Token.GetByType("parenthesisopen").Children)
+                    CompileInstruction(Toke, LocalFieldMap, Script, Function, TempStack);
+                S = TempStack.size() - S;
 
-                if (BigEndian)
-                    for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[i])));
-                else
-                    for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[7 - i])));
+                if (S>0)
+                {
+                    FOpcodeInstruction Rot("swp");
+                    Rot.Children.push_back(FOpcodeInstruction(std::to_string(S)));
+                    Function.Append(Rot);
+                }
+                Function.Append(FOpcodeInstruction("invoke_dynamic"));
 
-                Function.Append(Push);
-                TempStack.push("int");
-            }
-            else
-            if ( FunctionName == "malloc" )
-            {
-                if (TempStack.size() == 0 || Token.GetByType("parenthesisopen").Children.size() == 0)
-                    throw std::runtime_error(Error(Token.Token.Line, std::string("malloc takes one argument (Size).")));
-
-                FType TType(TempStack.top());
-                TempStack.pop();
-
-
-                TempStack.push("void*");
-                Function.Append(FunCall);
-            }
-            else
-            if ( FunctionName == "calloc" )
-            {
-                if (TempStack.size() < 2 || Token.GetByType("parenthesisopen").Children.size() != 2)
-                    throw std::runtime_error(Error(Token.Token.Line, std::string("calloc takes two arguments (Size, Clear).")));
-
-                FType TType(TempStack.top());
-                TempStack.pop();
-
-                TempStack.push("void*");
-                Function.Append(FunCall);
-            } else
-            {
-                Function.Append(FunCall);
-                TempStack.push(Function.ReturnType.RealType());
+                TempStack.push(funcreturn);
             }
         }
         else
         {
-            FOpcodeInstruction FunCall("call");
-            FunCall.Children.push_back(FOpcodeInstruction(FunctionName));
-            Function.Append(FunCall);
+            if (!CompilerSpecific)
+            {
+                auto FindResult = Script.Functions.find(FunctionName);
+                if (FindResult == Script.Functions.end())
+                    throw std::runtime_error(Error(Token.Token.Line, std::string("function '") + Token.Token.Value + " (" + std::string(")' could not be found.")));
+            }
 
-            TempStack.push(Script.Functions[FunctionName].ReturnType.RealType());
+            if (FunctionName != "sizeof")
+                for (auto &Toke : Token.GetByType("parenthesisopen").Children)
+                    CompileInstruction(Toke, LocalFieldMap, Script, Function, TempStack);
+
+            if (CompilerSpecific)
+            {
+                FOpcodeInstruction FunCall("call");
+                FunCall.Children.push_back(FOpcodeInstruction(FunctionName));
+
+                if ( FunctionName == "assert" )
+                {
+                    std::string FailedText  = "Assertion failed, line " + std::to_string(Token.Token.Line) + ".";
+
+                    FOpcodeInstruction Push("push");
+                    bool BigEndian  = BigEndianMachine();
+                    long Integer     = Token.Token.Line;
+                    unsigned char *IntegerMap    = (unsigned char *) &Integer;
+
+                    if (BigEndian)
+                        for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[i])));
+                    else
+                        for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[7 - i])));
+
+                    Function.Append(Push);
+                    Function.Append(FunCall);
+                    TempStack.push(Function.ReturnType.RealType());
+                }
+                else
+                if ( FunctionName == "make_copy")
+                {
+                    FType Type = MakeType(TempStack.top());
+
+                    if (Type.IsPrimitive())
+                    {
+                        FOpcodeInstruction FunCall("call");
+                        FunCall.Children.push_back(FOpcodeInstruction("!clone"));
+                        Function.Append(FunCall);
+                    }
+                    else
+                    {
+                        FOpcodeInstruction FunCall("call");
+                        FunCall.Children.push_back(FOpcodeInstruction("!clone_" + TempStack.top()));
+                        Function.Append(FunCall);
+                    }
+                }
+                else
+                if ( FunctionName == "print" )
+                {
+                    auto Tokes = Token.GetByType("parenthesisopen").Children;
+//                        if (Tokes.size() != 1)
+//                            throw std::runtime_error(Error(Token.Token.Line, std::string("print takes one argument.")));
+
+                    std::string Type = TempStack.top();
+                    TempStack.pop();
+
+                    if (Type == "int")
+                        FunCall.Children[0].ValueString = "print_long";
+                    else
+                    if (Type == "float")
+                        FunCall.Children[0].ValueString = "print_float";
+                    else
+                    if (Type == "word*")
+                        FunCall.Children[0].ValueString = "print_string";
+                    else
+                        FunCall.Children[0].ValueString = "print_address";
+
+                    TempStack.push("void");
+                    Function.Append(FunCall);
+                }
+                else
+                if ( FunctionName == "sizeof" )
+                {
+                    auto Tokes = Token.GetByType("parenthesisopen").Children;
+                    if (Tokes.size() != 1)
+                        throw std::runtime_error(Error(Token.Token.Line, std::string("sizeof takes one argument.")));
+
+                    if (Tokes[0].Token.Type != "identifier")
+                        throw std::runtime_error(Error(Token.Token.Line, std::string("sizeof takes one argument (TypeName).")));
+
+                    std::string Type = Tokes[0].Token.Value;
+                    FType TType(Type);
+                    long Integer    = 0;
+
+                    if (TType.IsPrimitive())
+                        Integer = TType.Size();
+                    else
+                    {
+                        auto Iterator = Script.Structs.find(Type);
+                        if (Script.Structs.end() == Iterator)
+                            throw std::runtime_error(Error(Token.Token.Line, std::string("provided typename '" + Type + "' does not exist.")));
+                        Integer = Iterator->second.Size;
+                    }
+
+                    FOpcodeInstruction Push("push");
+                    bool BigEndian  = BigEndianMachine();
+                    unsigned char *IntegerMap    = (unsigned char *) &Integer;
+
+                    if (BigEndian)
+                        for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[i])));
+                    else
+                        for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[7 - i])));
+
+                    Function.Append(Push);
+                    TempStack.push("int");
+                }
+                else
+                if ( FunctionName == "malloc" )
+                {
+                    if (TempStack.size() == 0 || Token.GetByType("parenthesisopen").Children.size() == 0)
+                        throw std::runtime_error(Error(Token.Token.Line, std::string("malloc takes one argument (Size).")));
+
+                    FType TType(TempStack.top());
+                    TempStack.pop();
+
+
+                    TempStack.push("void*");
+                    Function.Append(FunCall);
+                }
+                else
+                if ( FunctionName == "calloc" )
+                {
+                    if (TempStack.size() < 2 || Token.GetByType("parenthesisopen").Children.size() != 2)
+                        throw std::runtime_error(Error(Token.Token.Line, std::string("calloc takes two arguments (Size, Clear).")));
+
+                    FType TType(TempStack.top());
+                    TempStack.pop();
+
+                    TempStack.push("void*");
+                    Function.Append(FunCall);
+                } else
+                {
+                    Function.Append(FunCall);
+                    TempStack.push(Function.ReturnType.RealType());
+                }
+            }
+            else
+            {
+                FOpcodeInstruction FunCall("call");
+                FunCall.Children.push_back(FOpcodeInstruction(FunctionName));
+                Function.Append(FunCall);
+
+                TempStack.push(Script.Functions[FunctionName].ReturnType.RealType());
+            }
         }
     }
     else
         throw std::runtime_error(Error(Token.Token.Line, std::string("unsupported token '") + Token.Token.Value + " (" + Token.Token.Type + std::string(")' reached.")));
+}
+
+HCode::FType HCode::MakeType(std::string Type) {
+    std::string Raw = BaseType(Type);
+    int Pointer = 0;
+    int Reference = 0;
+    bool Func = 0;
+
+    for (int X = 0; X < Type.size(); X ++)
+        if (Type[X] == '*')
+            Pointer ++;
+        else
+        if (Type[X] == '&')
+            Reference ++;
+        else
+        if (Type[X] == '(')
+            Func = true;
+
+    FType NType(Raw, Pointer, false, Reference);
+    NType.Name = Raw;
+    NType.Pointer = Pointer;
+    NType.Reference = Reference;
+    NType.Function = Func;
+
+    return NType;
 }
 
 void HCode::CompileFunction(HCode::FMethod &Function, HCode::FToken FunctionToken, HCode::FAssembledScript &Script)
@@ -1125,6 +1288,7 @@ void HCode::Compile(std::vector<HCode::FToken> &Tokens, HCode::FGlobalScope &Sco
             FMethod Function;
             Function.Name = Token.Token.Value;
             Function.ReturnType = Token.GetByType("returns").Token.Value;
+            Function.Signature = Token.GetByType("signature").Token.Value;
 
             FToken PointerToken = Token.GetByType("returns").GetByType("is_pointer");
             FToken ReferenceToken = Token.GetByType("returns").GetByType("is_reference");
@@ -1147,8 +1311,6 @@ void HCode::Compile(std::vector<HCode::FToken> &Tokens, HCode::FGlobalScope &Sco
 
             if (ReferenceToken.Token.Value.size() > 0)
                 Function.ReturnType.Reference = std::stoi(ReferenceToken.Token.Value);
-
-            Function.Signature = Token.GetByType("parenthesis").ToString();
 
             if (Script.Functions.find(Function.Name) != Script.Functions.end())
                 throw std::runtime_error("redeclaration of function '" + Function.Name + "'. at '." + std::to_string(Token.Token.Line) + "'.");
@@ -1207,6 +1369,43 @@ void HCode::Compile(std::vector<HCode::FToken> &Tokens, HCode::FGlobalScope &Sco
             if (Function.Name.size() > 0)
                 Script.Functions[Function.Name] = Function;
         }
+        else
+        if (Token.Token.Type == "clone")
+        {
+            FMethod Function;
+            Function.Name = "!clone_" + Token.GetByType("typename_a").Token.Value;
+            Function.ReturnType = Token.GetByType("returns").Token.Value;
+
+            FToken PointerToken = Token.GetByType("returns").GetByType("is_pointer");
+            FToken ReferenceToken = Token.GetByType("returns").GetByType("is_reference");
+            FToken FuncToken = Token.GetByType("returns").GetByType("is_function");
+            FToken ArrayToken = Token.GetByType("returns").GetByType("is_array");
+
+            if (PointerToken.Token.Value.size() > 0)
+                Function.ReturnType.Pointer = std::stoi(PointerToken.Token.Value);
+
+            if (ArrayToken.Token.Value.size() > 0)
+            {
+                Function.ReturnType.IsArray = true;
+                Function.ReturnType.Array = std::stol(ArrayToken.Token.Value);
+            }
+
+            if (FuncToken.Token.Value.size() > 0)
+                Function.ReturnType.Function = true;
+
+            Function.ReturnType.Const = (Token.GetByType("returns").GetByType("is_const").Token.Value.size() > 0);
+
+            if (ReferenceToken.Token.Value.size() > 0)
+                Function.ReturnType.Reference = std::stoi(ReferenceToken.Token.Value);
+
+            Function.Signature = Token.GetByType("parenthesis").ToString();
+
+            if (Script.Functions.find(Function.Name) != Script.Functions.end())
+                throw std::runtime_error("redeclaration of function '" + Function.Name + "'. at '." + std::to_string(Token.Token.Line) + "'.");
+
+            if (Function.Name.size() > 0)
+                Script.Functions[Function.Name] = Function;
+        }
     }
 
     for (auto &Token : Tokens)
@@ -1228,6 +1427,14 @@ void HCode::Compile(std::vector<HCode::FToken> &Tokens, HCode::FGlobalScope &Sco
         if (Token.Token.Type == "destructor")
         {
             std::string Name = "destroy~" + Token.Token.Value;
+
+            FMethod &Function = Script.Functions[Name];
+            CompileFunction(Function, Token, Script);
+        }
+        else
+        if (Token.Token.Type == "clone")
+        {
+            std::string Name = "!clone_" + Token.GetByType("typename_a").Token.Value;
 
             FMethod &Function = Script.Functions[Name];
             CompileFunction(Function, Token, Script);

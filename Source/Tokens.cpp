@@ -212,7 +212,7 @@ bool HCode::FToken::IsOperator()
 {
     std::string Value = Token.Value;
 
-    return Value == "=" || Value == "+" || Value == "-" || Value == "*" || Value == "/" || Value == "%" || Value == "++"  || Value == "--" ||
+    return Value == "~" || Value == "=" || Value == "+" || Value == "-" || Value == "*" || Value == "/" || Value == "%" || Value == "++"  || Value == "--" ||
            Value == "+=" || Value == "-=" || Value == "*=" || Value == "/=" || Value == "%=" || Value == ":" || Value == "->" ||
            Value == "." || Value == "!" || Value == "!=" || Value == "==" || Value == "<" || Value == ">" || Value == "<=" || Value == ">=";// || Value == ",";
 }

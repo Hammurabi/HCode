@@ -232,6 +232,13 @@ void HCode::Lex(std::vector<HCode::FLexToken> &Tokens, const std::string &Script
         {
             if (Token.Value.size() == 0)
                 Token.Type = "symbol";
+            else
+            if (Token.Type == "word")
+            {
+                Token.Evaluate(Offset);
+                Tokens.push_back(Token);
+                Token = FLexToken("", "", Line);
+            }
 
             if ((Token.Value + Current) == "+")
             {
