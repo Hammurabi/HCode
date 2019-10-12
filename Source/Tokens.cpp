@@ -50,6 +50,9 @@ void HCode::FLexToken::Evaluate(unsigned int Oset)
         if (Value == ".")
             Type = "dot";
         else
+        if (Value == ":()")
+            Type = ":()";
+        else
         if (Value == ":")
             Type = "colon";
         else

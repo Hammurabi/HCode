@@ -252,6 +252,18 @@ void HCode::Lex(std::vector<HCode::FLexToken> &Tokens, const std::string &Script
                 Token.Type = "bracesopen";
             }
             else
+            if ((Token.Value + Current) == ":(")
+            {
+                Token.Value += Current;
+                Token.Type = ":(";
+            }
+            else
+            if ((Token.Value + Current) == ":()")
+            {
+                Token.Value += Current;
+                Token.Type = ":()";
+            }
+            else
             if ((Token.Value + Current) == "~")
             {
                 Token.Value += Current;

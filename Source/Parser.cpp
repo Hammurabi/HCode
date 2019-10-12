@@ -490,7 +490,7 @@ HCode::Parse(std::vector<HCode::FToken> &Tokens, std::vector<HCode::FLexToken> I
             }
         }
         else
-        if (Input.size() > 1 && Input[0].Type == "word" && Input[1].Value == ":=")
+        if (Input.size() > 1 && Input[0].Type == "word" && Input[1].Value == ":()")
         {
             FLexToken FieldName = Input[0];
             Input.erase(Input.begin());
