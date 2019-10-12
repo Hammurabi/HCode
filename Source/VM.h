@@ -116,7 +116,7 @@ namespace HCode
         inline void         SetField(unsigned int Field, FHCObject Value) override { if (Field >= Fields.size()) return; Fields[Field] = Value; }
         inline std::string  ToString() override { return "obj"; }
         inline void         Append(FHCObject Object) override { Fields.push_back(Object); }
-        inline void         Remove(FHCObject Object) { HCInteger Index = Object->AsInt(); if (Index < Fields.size()) Fields.erase(Fields.begin() + Index); }
+        inline void         Remove(FHCObject Object) override { HCInteger Index = Object->AsInt(); if (Index < Fields.size()) Fields.erase(Fields.begin() + Index); }
     private:
         std::vector<FHCObject> Fields;
     };
