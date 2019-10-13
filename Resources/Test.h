@@ -114,12 +114,27 @@ ToString:: word*(this: TestyBoy, num: int, num2: int, s: word*){
   print(s)
 }
 
+EKey :: enum{
+  KEY_W=1
+  KEY_A=2
+  KEY_S
+  KEY_L
+  KEY_K = 3
+  KEY_X
+  KEY_D=4
+}
+
 import Collections
 import StringLib
 
 Main:: void() {
   Zero: Vector3     = Vector3(0.,0.,0.)
   Up: Vector3       = Vector3(0.,1.,0.)
+  W_Key: int        = EKey :: KEY_S
+  print(EKey :: KEY_W)
+  print(EKey :: KEY_A)
+  print(EKey :: KEY_S)
+  print(EKey :: KEY_D)
 
   VectorA: Vector3  = Vector3(0.,1.,0.)
   VectorB: Vector3  = Vector3(0.,0.,0.) - Vector3(0.,1.,0.)

@@ -272,7 +272,7 @@ void HCode::FMethod::Append(HCode::FOpcodeInstruction OP)
 HCode::FField::FField() : Type("")
 {
 }
-HCode::FField::FField(const FField &O) : Name(O.Name), Type(O.Type), FieldAddress(O.FieldAddress)
+HCode::FField::FField(const FField &O) : Name(O.Name), Default(O.Default), Type(O.Type), FieldAddress(O.FieldAddress)
 {
 }
 HCode::FLocalField::FLocalField() : Type("") {}
@@ -705,6 +705,34 @@ void HCode::CompileInstruction(HCode::FToken &Token, std::map<std::string, HCode
         unsigned int I = 0;
         for (auto &T : Token.Children)
             CompileInstruction(T, LocalFieldMap, Script, Function, TempStack, I ++);
+    }
+    else
+    if (Token.Token.Type == "staticaccess")
+    {
+        std::string Type = "";
+
+        auto FildResult = Script.Fields.find(Token.Token.Value);
+
+        if (FildResult == Script.Fields.end())
+            throw std::runtime_error(Error(Token.Token.Line, std::string("reference to undeclared variable '") + Token.Token.Value + std::string("'.")));
+
+        if (FildResult->second.Type.Name == "enum")
+        {
+            FOpcodeInstruction Push     = FOpcodeInstruction("push");
+            bool BigEndian              = BigEndianMachine();
+            long long Integer           = std::stoll(FildResult->second.Default);
+            unsigned char *IntegerMap   = (unsigned char *) &Integer;
+
+            if (BigEndian)
+                for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[i])));
+            else
+                for (int i = 0; i < 8; i ++) Push.Children.push_back(FOpcodeInstruction(std::to_string(IntegerMap[7 - i])));
+
+            Function.Append(Push);
+            TempStack.push("int");
+        }
+        else
+            throw std::runtime_error(Error(Token.Token.Line, std::string("reference to undeclared variable '") + Token.Token.Value + std::string("'.")));
     }
     else
     if (Token.IsOperator())
@@ -1220,6 +1248,62 @@ void HCode::Compile(std::vector<HCode::FToken> &Tokens, HCode::FGlobalScope &Sco
     {
         if (Token.Token.Type == "scriptname")
             Name = Token.Token.Value;
+        else
+        if (Token.Token.Type == "enum")
+        {
+            std::string Name = Token.GetByType("name").Token.Value;
+
+            FToken Body = Token.GetByType("body");
+            std::vector<FToken> Fields;
+            Body.GetByTypeRecursive("enum", Fields);
+            unsigned long long EnumNum = 0;
+
+            //should use a hashtable/set instead
+            //or instead we can store the field
+            //in the map and if a new enum=val
+            //is present, if the value is in the map
+            //we can just get the field from the map
+            //and change the value.
+            std::map<unsigned long long, FField> Mapping;
+
+            for (auto &ChildToken : Fields)
+            {
+                std::string Enum = Name + "::" + ChildToken.Token.Value;
+                FField Field;
+                Field.Name = Enum;
+                Field.Type.Name = "enum";
+
+                unsigned long long EnumNumber = ChildToken.Children.size() > 0 ? std::stoll(ChildToken.Children[0].Token.Value) : (EnumNum);
+
+                if (Mapping.find(EnumNumber) != Mapping.end() && ChildToken.Children.size() > 0)
+                {
+                    unsigned long long EnumNumber2 = 0;
+                    while (Mapping.find(EnumNumber2) != Mapping.end())
+                        EnumNumber2 ++;
+                    Mapping[EnumNumber].Default = std::to_string(EnumNumber2);
+                    Mapping[EnumNumber2] = Mapping[EnumNumber];
+                }
+                else
+                if (Mapping.find(EnumNumber) != Mapping.end())
+                {
+                    EnumNumber = 0;
+                    while (Mapping.find(EnumNumber) != Mapping.end())
+                        EnumNumber ++;
+                }
+
+                Field.Default = std::to_string(EnumNumber);
+                Mapping[EnumNumber] = Field;
+
+                EnumNum ++;
+            }
+
+            for (auto &Field : Mapping)
+            {
+                if (Script.Fields.find(Field.second.Name) != Script.Fields.end())
+                    throw std::runtime_error("redeclaration of field '" + Field.second.Name + "'. at '." + std::to_string(Token.Token.Line) + "'.");
+                Script.Fields[Field.second.Name] = Field.second;
+            }
+        }
         else
         if (Token.Token.Type == "struct")
         {

@@ -217,7 +217,7 @@ bool HCode::FToken::IsOperator()
 
     return Value == "~" || Value == "=" || Value == "+" || Value == "-" || Value == "*" || Value == "/" || Value == "%" || Value == "++"  || Value == "--" ||
            Value == "+=" || Value == "-=" || Value == "*=" || Value == "/=" || Value == "%=" || Value == ":" || Value == "->" ||
-           Value == "." || Value == "!" || Value == "!=" || Value == "==" || Value == "<" || Value == ">" || Value == "<=" || Value == ">=";// || Value == ",";
+           Value == "." || Value == "!" || Value == "!=" || Value == "==" || Value == "<" || Value == ">" || Value == "<=" || Value == ">=" || Value == "::";// || Value == ",";
 }
 
 HCode::FToken HCode::FToken::GetByName(std::string Name)
@@ -252,7 +252,7 @@ void HCode::FToken::GetByTypeRecursive(std::string Type, std::vector<HCode::FTok
 int HCode::FToken::GetPrecedence()
 {
     std::string Value = Token.Value;
-    if (Value == "->" || Value == "." || Value == ":")
+    if (Value == "->" || Value == "." || Value == ":" || Value == "::")
         return 18-2;
     else
     if (Value == "!")

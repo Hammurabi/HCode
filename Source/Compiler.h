@@ -112,6 +112,7 @@ namespace HCode
     struct FField
     {
         std::string     Name;
+        std::string     Default;
         FType           Type;
         unsigned int    FieldAddress;
 

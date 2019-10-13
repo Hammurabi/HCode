@@ -129,6 +129,28 @@ void HCode::InfixPostfix(std::vector<HCode::FToken> &InOut)
             Temp.push_back(MemberAccess);
         }
         else
+        if (InOut.size() > (I+2) && (InOut[I + 2].Token.Value == "::"))
+        {
+            std::string Value = "";
+            FToken MemberAccess(InOut[I + 2].Token);
+            MemberAccess.Token.Type = "staticaccess";
+            Value += InOut[I].Token.Value + "::";
+            Value += InOut[I + 1].Token.Value;
+//            MemberAccess.Children.push_back(InOut[I]);
+//            MemberAccess.Children.push_back(InOut[I + 1]);
+            I += 2;
+            while (InOut.size() > (I+2) && (InOut[I + 2].Token.Value == "::"))
+            {
+                Value += "::" + InOut[I + 1].Token.Value;
+//                MemberAccess.Children.push_back(InOut[I + 1]);
+                I += 2;
+            }
+
+            MemberAccess.Token.Value = Value;
+
+            Temp.push_back(MemberAccess);
+        }
+        else
             Temp.push_back(InOut[I]);
     }
 
@@ -1138,8 +1160,74 @@ HCode::Parse(std::vector<HCode::FToken> &Tokens, std::vector<HCode::FLexToken> I
                 Tokens.push_back(Token);
         }
         else
-        if (Input.size() > 2 && Input[0].Type == "word" && Input[1].Value == "::")
+        if (!RightHand && Input.size() > 2 && Input[0].Type == "word" && Input[1].Value == "::")
         {
+            if (Input[2].Value == "enum")
+            {
+                std::string Name    = Input[0].Value;
+                FLexToken Struct    = Input[0];
+                FLexToken Nam       = Input[0];
+                Nam.Type = "name";
+                Struct.Type         = "enum";
+                Struct.Value        = "enum";
+                Input.erase(Input.begin());
+                Input.erase(Input.begin());
+                Input.erase(Input.begin());
+
+                if (RightHand)
+                    throw(std::runtime_error("struct declarations cannot be made on the right side of a statement. at '" + std::to_string(Struct.Line) + "'."));
+
+                if (Nam.Value == "NULL" || Nam.Value == "struct" || Nam.Value == "defun" || Nam.Value == "fun" || Nam.Value == "subroutine")
+                    throw(std::runtime_error("'" + Nam.Value + "' is a reserved word. at '" + std::to_string(Nam.Line) + "'."));
+
+                std::vector<FLexToken> BodyTokes;
+
+
+                if (Input[0].Value != "{")
+                    throw(std::runtime_error("struct declaration has no body. " + std::to_string(Struct.Line)));
+
+                OC("braces", "{", "}", BodyTokes, Input);
+
+                FToken Bdy(FLexToken("body", "body", 0));
+
+                for (int x = 0; x < BodyTokes.size(); x ++)
+                {
+                    auto Token = BodyTokes[x];
+
+                    if (Token.Type != "word")
+                        throw(std::runtime_error("unknown symbol '" + Token.Value + "' in enum. " + std::to_string(Struct.Line)));
+
+                    if (BodyTokes.size() > x+2 && BodyTokes[x + 1].Value == "=" && BodyTokes[x + 2].Type == "number")
+                    {
+                        FToken Toke(Token);
+                        Toke.Token.Type = "enum";
+                        Toke.Children.push_back(FToken(BodyTokes[x + 2]));
+                        x += 2;
+                        Bdy.Children.push_back(Toke);
+                    }
+                    else
+                    {
+                        FToken Toke(Token);
+                        Toke.Token.Type = "enum";
+                        Bdy.Children.push_back(Toke);
+                    }
+                }
+
+                FToken TheStruct(Struct);
+
+                TheStruct.Children.push_back(Nam);
+                TheStruct.Children.push_back(Bdy);
+
+                //if there is a function inside the enum,
+                //this point in code will not be reached due
+                //to the function not having an "end" keyword.
+                //Todo: make this error reachable.
+                if (Bdy.HasType("fun"))
+                    throw(std::runtime_error("structs cannot hold functions. " + std::to_string(Struct.Line)));
+
+                Tokens.push_back(TheStruct);
+            }
+            else
             if (Input[2].Value == "struct")
             {
                 std::string Name    = Input[0].Value;
@@ -1553,7 +1641,7 @@ HCode::Parse(std::vector<HCode::FToken> &Tokens, std::vector<HCode::FLexToken> I
             Input.erase(Input.begin());
         }
         else
-        if (IEQ(".") || IEQ(":") || IEQ("->"))
+        if (IEQ(".") || IEQ(":") || IEQ("->") || IEQ("::"))
         {
             FToken Operator(Input[0]);
             Tokens.push_back(Operator);

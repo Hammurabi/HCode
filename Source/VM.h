@@ -517,6 +517,8 @@ namespace HCode
             Lex(LexedTokens, HumanReadable);
             Parse(ParsedTokens, LexedTokens);
             FAssembledScript Script(this);
+//            for (auto &L : ParsedTokens)
+//                std::cout<<L.ToString()<<std::endl;
             for (auto &Field : NativeData.Fields) Script.Fields[Field.first] = Field.second;
             for (auto &Funcn : NativeData.Functions) Script.Functions[Funcn.first] = Funcn.second;
             for (auto &Struc : NativeData.Structs) Script.Structs[Struc.first] = Struc.second;
@@ -561,7 +563,6 @@ namespace HCode
                 return MakeInt(0);
 
             std::vector<unsigned char> Instructions = GenerateInstructions(Tuple.Second.AssembledFunction, Table, Tuple.First);
-
 
             FStack TheStack;
             FScope TheScope(Function, TheStack);
