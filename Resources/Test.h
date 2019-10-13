@@ -94,7 +94,7 @@ import StringLib
 
 TestyBoy:: struct {
   name: word*
-  toString:() word*(this: TestyBoy, num: int, num2: int, s: word*)
+  toString: (word*)(this: TestyBoy, num: int, num2: int, s: word*)
 }
 
 clone:: Vector3 (Vector3) {

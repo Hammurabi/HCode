@@ -492,148 +492,148 @@ HCode::Parse(std::vector<HCode::FToken> &Tokens, std::vector<HCode::FLexToken> I
         else
         if (Input.size() > 1 && Input[0].Type == "word" && Input[1].Value == ":()")
         {
-            FLexToken FieldName = Input[0];
-            Input.erase(Input.begin());
-            Input.erase(Input.begin());
-
-            unsigned char   IsPointer   = 0;
-            unsigned long   ArraySize   = 0;
-            bool            IsArray     = 0;
-            bool            IsConst     = 0;
-            unsigned char   IsReference = 0;
-            bool            IsTyped     = 0;
-            FLexToken       Nam         = FLexToken("", "", FieldName.Line);
-            std::string ReturnSignature = "";
-
-            while (Input.size() > 0 && Input[0].Value != "(" && Input[0].Line == Nam.Line)
-            {
-                if (Input[0].Value == "*")
-                    IsPointer ++;
-                else
-                if (Input[0].Value == "const" && !IsConst)
-                    IsConst = true;
-                else
-                if (Input[0].Value == "&")
-                    IsReference ++;
-                else
-                if (Input[0].Type == "word" && !IsTyped)
-                {
-                    Nam = Input[0];
-                    Nam.Type = "returns";
-                    IsTyped = true;
-                }
-                else
-                    throw(std::runtime_error("token '" + Input[0].Value + " (" + Input[0].Type + ")" + "' is out of place (function declaration) at '" + std::to_string(Input[0].Line) + "'."));
-
-                ReturnSignature += Input[0].Value;
-                Input.erase(Input.begin());
-            }
-
-
-            if (!IsTyped)
-                throw(std::runtime_error("function declaration has no valid return type. at '" + std::to_string(Nam.Line) + "'."));
-
-
-            FToken ReturnType(Nam);
-            if (IsPointer > 0)
-                ReturnType.Children.push_back(FToken(FLexToken(std::to_string(IsPointer), "is_pointer", Nam.Line)));
-            if (IsConst)
-                ReturnType.Children.push_back(FToken(FLexToken("is_const", "is_const", Nam.Line)));
-            if (IsReference > 0)
-                ReturnType.Children.push_back(FToken(FLexToken(std::to_string(IsReference), "is_reference", Nam.Line)));
-
-            if (IsReference && IsPointer)
-                throw(std::runtime_error("'" + Nam.Value + "' cannot be both a pointer and a reference. at '" + std::to_string(Nam.Line) + "'."));
-
-            if (Input.size() == 0)
-                throw(std::runtime_error("lambdas must be followed by parenthesis. at '" + std::to_string(FieldName.Line) + "'."));
-
-            if (Input[0].Value != "(")
-                throw(std::runtime_error("lambdas must be followed by parenthesis. at '" + std::to_string(FieldName.Line) + "'."));
-
-
-            std::string Signature = "";
-            std::vector<FLexToken> ParenthesisTokens;
-            OC("parenthesis", "(", ")", ParenthesisTokens, Input);
-            for (auto &Toke : ParenthesisTokens) Signature += Toke.Value;
-            FToken Parenthesis(FLexToken("parenthesis", "parenthesis", FieldName.Line));
-            Signature = ReturnSignature + "(" + Signature + ")";
-
-            Parse(Parenthesis.Children, ParenthesisTokens, false, true);
-
-            if (Input.size() && Input[0].Value == "{")
-            {
-                std::vector<FLexToken> BodyTokens;
-
-
-                OC("braces", "{", "}", BodyTokens, Input);
-                FToken Body(FLexToken("body", "body", Nam.Line));
-                Parse(Body.Children, BodyTokens, false, true, false, false, true);
-
-                FToken Field(FieldName);
-                Field.Token.Type = "lambda";
-                Field.Children.push_back(ReturnType);
-                Field.Children.push_back(Parenthesis);
-                Field.Children.push_back(FToken(FLexToken("is_function", "is_function", Nam.Line)));
-                Field.Children.push_back(Body);
-
-                Tokens.push_back(Field);
-            }
-            else
-            if (Input.size() && Input[0].Value == "=")
-            {
-                std::vector<FLexToken> EqualsTokens;
-                Input.erase(Input.begin());
-
-                while (Input.size() && Input[0].Line == Nam.Line)
-                {
-                    EqualsTokens.push_back(Input[0]);
-                    Input.erase(Input.begin());
-                }
-
-                if (EqualsTokens.size() == 0)
-                    throw(std::runtime_error("equals must be followed by value. at '" + std::to_string(Nam.Line) + "'."));
-
-
-                FToken Body(FLexToken("equals", "equals", Nam.Line));
-                Parse(Body.Children, EqualsTokens, true);
-
-                FToken Field(FieldName);
-                Field.Token.Type = "field";
-                Field.Token.Value = Signature;
-                FToken Name(FieldName);
-                Name.Token.Type = "name";
-                Field.Children.push_back(Name);
-                Field.Children.push_back(FToken(FLexToken(FieldName.Value, "name", Nam.Line)));
-                Field.Children.push_back(FToken(FLexToken("is_function", "is_function", Nam.Line)));
-                Field.Children.push_back(Parenthesis);
-                Field.Children.push_back(Body);
-//                for (auto &Child : ReturnType.Children)
-//                    Field.Children.push_back(Child);
-
-                Tokens.push_back(Field);
-            }
-            else
-            {
-                FToken Field(FieldName);
-                Field.Token.Type = "field";
-                Field.Token.Value = Signature;
-                FToken Name(FieldName);
-                Name.Token.Type = "name";
-                Field.Children.push_back(Name);
-                Field.Children.push_back(FToken(FLexToken("is_function", "is_function", Nam.Line)));
-                Field.Children.push_back(Parenthesis);
-//                for (auto &Child : ReturnType.Children)
-//                    Field.Children.push_back(Child);
-
-                Tokens.push_back(Field);
-            }
-
-//            std::cerr << (Tokens.end()-1)->ToString() << std::endl;
         }
         else
         if (Input.size() > 1 && Input[0].Type == "word" && Input[1].Value == ":")
         {
+            if (Input.size() > 2 && Input[0].Type == "word" && Input[2].Value == "(")
+            {
+                FLexToken FieldName = Input[0];
+                Input.erase(Input.begin());
+                Input.erase(Input.begin());
+
+                unsigned char   IsPointer   = 0;
+                unsigned long   ArraySize   = 0;
+                bool            IsArray     = 0;
+                bool            IsConst     = 0;
+                unsigned char   IsReference = 0;
+                bool            IsTyped     = 0;
+                FLexToken       Nam         = FLexToken("", "", FieldName.Line);
+                std::string ReturnSignature = "";
+
+                std::vector<FLexToken> ReturnTypeInformation;
+                OC("parenthesis", "(", ")", ReturnTypeInformation, Input);
+
+                while (ReturnTypeInformation.size() > 0)
+                {
+                    if (ReturnTypeInformation[0].Value == "*")
+                        IsPointer ++;
+                    else
+                    if (ReturnTypeInformation[0].Value == "const" && !IsConst)
+                        IsConst = true;
+                    else
+                    if (ReturnTypeInformation[0].Value == "&")
+                        IsReference ++;
+                    else
+                    if (ReturnTypeInformation[0].Type == "word" && !IsTyped)
+                    {
+                        Nam = ReturnTypeInformation[0];
+                        Nam.Type = "returns";
+                        IsTyped = true;
+                    }
+                    else
+                        throw(std::runtime_error("token '" + ReturnTypeInformation[0].Value + " (" + ReturnTypeInformation[0].Type + ")" + "' is out of place (function declaration) at '" + std::to_string(ReturnTypeInformation[0].Line) + "'."));
+
+                    ReturnSignature += ReturnTypeInformation[0].Value;
+                    ReturnTypeInformation.erase(ReturnTypeInformation.begin());
+                }
+
+                if (!IsTyped)
+                    throw(std::runtime_error("function declaration has no valid return type. at '" + std::to_string(Nam.Line) + "'."));
+
+
+                FToken ReturnType(Nam);
+                if (IsPointer > 0)
+                    ReturnType.Children.push_back(FToken(FLexToken(std::to_string(IsPointer), "is_pointer", Nam.Line)));
+                if (IsConst)
+                    ReturnType.Children.push_back(FToken(FLexToken("is_const", "is_const", Nam.Line)));
+                if (IsReference > 0)
+                    ReturnType.Children.push_back(FToken(FLexToken(std::to_string(IsReference), "is_reference", Nam.Line)));
+
+                if (IsReference && IsPointer)
+                    throw(std::runtime_error("'" + Nam.Value + "' cannot be both a pointer and a reference. at '" + std::to_string(Nam.Line) + "'."));
+
+                if (Input.size() == 0)
+                    throw(std::runtime_error("lambdas must be followed by parenthesis. at '" + std::to_string(FieldName.Line) + "'."));
+
+                if (Input[0].Value != "(")
+                    throw(std::runtime_error("lambdas must be followed by parenthesis. at '" + std::to_string(FieldName.Line) + "'."));
+
+
+                std::string Signature = "";
+                std::vector<FLexToken> ParenthesisTokens;
+                OC("parenthesis", "(", ")", ParenthesisTokens, Input);
+                for (auto &Toke : ParenthesisTokens) Signature += Toke.Value;
+                FToken Parenthesis(FLexToken("parenthesis", "parenthesis", FieldName.Line));
+                Signature = ReturnSignature + "(" + Signature + ")";
+
+                Parse(Parenthesis.Children, ParenthesisTokens, false, true);
+
+                if (Input.size() && Input[0].Value == "{")
+                {
+                    std::vector<FLexToken> BodyTokens;
+
+
+                    OC("braces", "{", "}", BodyTokens, Input);
+                    FToken Body(FLexToken("body", "body", Nam.Line));
+                    Parse(Body.Children, BodyTokens, false, true, false, false, true);
+
+                    FToken Field(FieldName);
+                    Field.Token.Type = "lambda";
+                    Field.Children.push_back(ReturnType);
+                    Field.Children.push_back(Parenthesis);
+                    Field.Children.push_back(FToken(FLexToken("is_function", "is_function", Nam.Line)));
+                    Field.Children.push_back(Body);
+
+                    Tokens.push_back(Field);
+                }
+                else
+                if (Input.size() && Input[0].Value == "=")
+                {
+                    std::vector<FLexToken> EqualsTokens;
+                    Input.erase(Input.begin());
+
+                    while (Input.size() && Input[0].Line == Nam.Line)
+                    {
+                        EqualsTokens.push_back(Input[0]);
+                        Input.erase(Input.begin());
+                    }
+
+                    if (EqualsTokens.size() == 0)
+                        throw(std::runtime_error("equals must be followed by value. at '" + std::to_string(Nam.Line) + "'."));
+
+
+                    FToken Body(FLexToken("equals", "equals", Nam.Line));
+                    Parse(Body.Children, EqualsTokens, true);
+
+                    FToken Field(FieldName);
+                    Field.Token.Type = "field";
+                    Field.Token.Value = Signature;
+                    FToken Name(FieldName);
+                    Name.Token.Type = "name";
+                    Field.Children.push_back(Name);
+                    Field.Children.push_back(FToken(FLexToken(FieldName.Value, "name", Nam.Line)));
+                    Field.Children.push_back(FToken(FLexToken("is_function", "is_function", Nam.Line)));
+                    Field.Children.push_back(Parenthesis);
+                    Field.Children.push_back(Body);
+
+                    Tokens.push_back(Field);
+                }
+                else
+                {
+                    FToken Field(FieldName);
+                    Field.Token.Type = "field";
+                    Field.Token.Value = Signature;
+                    FToken Name(FieldName);
+                    Name.Token.Type = "name";
+                    Field.Children.push_back(Name);
+                    Field.Children.push_back(FToken(FLexToken("is_function", "is_function", Nam.Line)));
+                    Field.Children.push_back(Parenthesis);
+
+                    Tokens.push_back(Field);
+                }
+            }
+            else
             if (Input.size() > 0 && Input[0].Type == "word")
             {
                 FLexToken BToke = Input[0];
@@ -662,7 +662,6 @@ HCode::Parse(std::vector<HCode::FToken> &Tokens, std::vector<HCode::FLexToken> I
 
                 unsigned char Pointers      = 0;
                 unsigned char Reference     = 0;
-                bool          IsFunction    = false;
                 bool          IsArray       = 0;
                 unsigned long ArraySize     = 0;
 
@@ -1277,6 +1276,7 @@ HCode::Parse(std::vector<HCode::FToken> &Tokens, std::vector<HCode::FLexToken> I
                 ParenthesisToken.Value = "parenthesis";
                 FToken Prn(ParenthesisToken);
                 std::vector<FLexToken> Tokes;
+
                 OC("parenthesis", "(", ")", Tokes, Input);
                 Parse(Prn.Children, Tokes, false, true);
                 std::string Signature = "";
@@ -1288,10 +1288,19 @@ HCode::Parse(std::vector<HCode::FToken> &Tokens, std::vector<HCode::FLexToken> I
 
                 std::vector<FLexToken> BodyTokes;
 
-
+                if (Input[0].Value == "native")
+                {
+                    FToken NatToken(Input[0]);
+                    Input.erase(Input.begin());
+                    NatToken.Token.Type     == "is_native";
+                    NatToken.Token.Value    == "is_native";
+                    Func.Children.push_back(NatToken);
+                }
+                else
                 if (Input[0].Value != "{")
                     throw(std::runtime_error("function declaration has no body. " + std::to_string(Fun.Line)));
-                OC("braces", "{", "}", BodyTokes, Input);
+                else
+                    OC("braces", "{", "}", BodyTokes, Input);
                 FToken Bdy(FLexToken("body", "body", 0));
 
                 Parse(Bdy.Children, BodyTokes, false, false, false, false, true);

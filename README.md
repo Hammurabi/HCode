@@ -60,7 +60,7 @@ Whenever a feature is implemented, (eventually) I would be able to compile the s
     SomeStruct:: struct {//structs do not hold functions
 	    Field1: int
 	    Field2: float
-	    FuncPointer:() int(this: SomeStruct, X:int, Y:int) //function pointer
+	    FuncPointer: (int)(this: SomeStruct, X:int, Y:int) //function pointer
 	    ...
     }
     
