@@ -798,64 +798,6 @@ HCode::Parse(std::vector<HCode::FToken> &Tokens, std::vector<HCode::FLexToken> I
             }
         }
         else
-        if (IEQ("struct"))
-        {
-            FLexToken Struct = Input[0];
-            Struct.Type     = "struct";
-            Struct.Value    = "struct";
-            Input.erase(Input.begin());
-
-            if (RightHand)
-                throw(std::runtime_error("struct declarations cannot be made on the right side of a statement. at '" + std::to_string(Struct.Line) + "'."));
-
-            if (Input.size() == 0)
-                throw(std::runtime_error("struct declaration is not valid, missing '::'. " + std::to_string(Struct.Line)));
-
-            if (Input[0].Value != "::")
-                throw(std::runtime_error("struct declaration is not valid, missing '::'. " + std::to_string(Struct.Line)));
-
-            Input.erase(Input.begin());
-
-            if (Input.size() == 0)
-                throw(std::runtime_error("struct declaration has no name. " + std::to_string(Struct.Line)));
-
-            if (Input[0].Type != "word")
-                throw(std::runtime_error("struct declaration has no valid name. " + std::to_string(Struct.Line)));
-
-            FLexToken Nam = Input[0];
-            Nam.Type = "name";
-            if (Nam.Value == "NULL" || Nam.Value == "struct" || Nam.Value == "defun" || Nam.Value == "fun" || Nam.Value == "subroutine")
-                throw(std::runtime_error("'" + Nam.Value + "' is a reserved word. at '" + std::to_string(Nam.Line) + "'."));
-            Input.erase(Input.begin());
-
-
-
-
-            std::vector<FLexToken> BodyTokes;
-
-            OC("braces", "{", "}", BodyTokes, Input);
-
-            FToken Bdy(FLexToken("body", "body", 0));
-
-            Parse(Bdy.Children, BodyTokes, false, false, false, false, true);
-
-            FToken TheStruct(Struct);
-
-            TheStruct.Children.push_back(Nam);
-            TheStruct.Children.push_back(Bdy);
-
-            //if there is a function inside the struct,
-            //this point in code will not be reached due
-            //to the function not having an "end" keyword.
-            //Todo: make this error reachable.
-            if (Bdy.HasType("fun"))
-            {
-                throw(std::runtime_error("structs cannot hold functions. " + std::to_string(Struct.Line)));
-            }
-
-            Tokens.push_back(TheStruct);
-        }
-        else
         if (Input[0].Value == "~")
         {
             FLexToken Fun = Input[0];
@@ -1199,119 +1141,169 @@ HCode::Parse(std::vector<HCode::FToken> &Tokens, std::vector<HCode::FLexToken> I
         else
         if (Input.size() > 2 && Input[0].Type == "word" && Input[1].Value == "::")
         {
-            FLexToken Fun = Input[0];
-            Fun.Type = "fun";
-            Input.erase(Input.begin());
-            Input.erase(Input.begin());
-            if (RightHand)
+            if (Input[2].Value == "struct")
             {
-                throw(std::runtime_error("function declarations cannot be made on the right side of a statement. at '" + std::to_string(Fun.Line) + "'."));
-            }
-
-            if (Input.size() == 0)
-            {
-                throw(std::runtime_error("function declaration has no return type. " + std::to_string(Fun.Line)));
-            }
-
-            FToken Func(Fun);
-            FLexToken Nam = Input[0];
-            if (Nam.Value == "NULL" || Nam.Value == "struct" || Nam.Value == "defun" || Nam.Value == "fun" || Nam.Value == "subroutine")
-            {
-                throw(std::runtime_error("'" + Nam.Value + "' is a reserved word. at '" + std::to_string(Nam.Line) + "'."));
-            }
-
-            unsigned char   IsPointer   = 0;
-            bool            IsConst     = 0;
-            unsigned char   IsReference = 0;
-            bool            IsTyped     = 0;
-            std::string ReturnSignature = "";
-
-            while (Input.size() > 0 && Input[0].Value != "(")
-            {
-                if (Input[0].Value == "*")
-                    IsPointer ++;
-                else
-                if (Input[0].Value == "const" && !IsConst)
-                    IsConst = true;
-                else
-                if (Input[0].Value == "&")
-                    IsReference ++;
-                else
-                if (Input[0].Type == "word" && !IsTyped)
-                {
-                    Nam = Input[0];
-                    Nam.Type = "returns";
-                    IsTyped = true;
-                }
-                else
-                {
-                    throw(std::runtime_error("token '" + Input[0].Value + " (" + Input[0].Type + ")" + "' is out of place (function declaration) at '" + std::to_string(Input[0].Line) + "'."));
-                }
-
-                ReturnSignature += Input[0].Value;
-
+                std::string Name    = Input[0].Value;
+                FLexToken Struct    = Input[0];
+                FLexToken Nam       = Input[0];
+                Nam.Type = "name";
+                Struct.Type         = "struct";
+                Struct.Value        = "struct";
                 Input.erase(Input.begin());
+                Input.erase(Input.begin());
+                Input.erase(Input.begin());
+
+                if (RightHand)
+                    throw(std::runtime_error("struct declarations cannot be made on the right side of a statement. at '" + std::to_string(Struct.Line) + "'."));
+
+                if (Nam.Value == "NULL" || Nam.Value == "struct" || Nam.Value == "defun" || Nam.Value == "fun" || Nam.Value == "subroutine")
+                    throw(std::runtime_error("'" + Nam.Value + "' is a reserved word. at '" + std::to_string(Nam.Line) + "'."));
+
+                std::vector<FLexToken> BodyTokes;
+
+
+                if (Input[0].Value != "{")
+                    throw(std::runtime_error("struct declaration has no body. " + std::to_string(Struct.Line)));
+
+                OC("braces", "{", "}", BodyTokes, Input);
+
+                FToken Bdy(FLexToken("body", "body", 0));
+
+                Parse(Bdy.Children, BodyTokes, false, false, false, false, true);
+
+                FToken TheStruct(Struct);
+
+                TheStruct.Children.push_back(Nam);
+                TheStruct.Children.push_back(Bdy);
+
+                //if there is a function inside the struct,
+                //this point in code will not be reached due
+                //to the function not having an "end" keyword.
+                //Todo: make this error reachable.
+                if (Bdy.HasType("fun"))
+                    throw(std::runtime_error("structs cannot hold functions. " + std::to_string(Struct.Line)));
+
+                Tokens.push_back(TheStruct);
             }
-
-
-            if (!IsTyped)
+            else
             {
-                throw(std::runtime_error("function declaration has no valid return type. at '" + std::to_string(Nam.Line) + "'."));
+                FLexToken Fun = Input[0];
+                Fun.Type = "fun";
+                Input.erase(Input.begin());
+                Input.erase(Input.begin());
+                if (RightHand)
+                {
+                    throw(std::runtime_error("function declarations cannot be made on the right side of a statement. at '" + std::to_string(Fun.Line) + "'."));
+                }
+
+                if (Input.size() == 0)
+                {
+                    throw(std::runtime_error("function declaration has no return type. " + std::to_string(Fun.Line)));
+                }
+
+                FToken Func(Fun);
+                FLexToken Nam = Input[0];
+                if (Nam.Value == "NULL" || Nam.Value == "struct" || Nam.Value == "defun" || Nam.Value == "fun" || Nam.Value == "subroutine")
+                {
+                    throw(std::runtime_error("'" + Nam.Value + "' is a reserved word. at '" + std::to_string(Nam.Line) + "'."));
+                }
+
+                unsigned char   IsPointer   = 0;
+                bool            IsConst     = 0;
+                unsigned char   IsReference = 0;
+                bool            IsTyped     = 0;
+                std::string ReturnSignature = "";
+
+                while (Input.size() > 0 && Input[0].Value != "(")
+                {
+                    if (Input[0].Value == "*")
+                        IsPointer ++;
+                    else
+                    if (Input[0].Value == "const" && !IsConst)
+                        IsConst = true;
+                    else
+                    if (Input[0].Value == "&")
+                        IsReference ++;
+                    else
+                    if (Input[0].Type == "word" && !IsTyped)
+                    {
+                        Nam = Input[0];
+                        Nam.Type = "returns";
+                        IsTyped = true;
+                    }
+                    else
+                    {
+                        throw(std::runtime_error("token '" + Input[0].Value + " (" + Input[0].Type + ")" + "' is out of place (function declaration) at '" + std::to_string(Input[0].Line) + "'."));
+                    }
+
+                    ReturnSignature += Input[0].Value;
+
+                    Input.erase(Input.begin());
+                }
+
+
+                if (!IsTyped)
+                {
+                    throw(std::runtime_error("function declaration has no valid return type. at '" + std::to_string(Nam.Line) + "'."));
+                }
+
+                FToken ReturnType(Nam);
+                if (IsPointer > 0)
+                    ReturnType.Children.push_back(FToken(FLexToken(std::to_string(IsPointer), "is_pointer", Nam.Line)));
+                if (IsConst)
+                    ReturnType.Children.push_back(FToken(FLexToken("is_const", "is_const", Nam.Line)));
+                if (IsReference > 0)
+                    ReturnType.Children.push_back(FToken(FLexToken(std::to_string(IsReference), "is_reference", Nam.Line)));
+
+                if (IsReference && IsPointer)
+                {
+                    throw(std::runtime_error("'" + Nam.Value + "' cannot be both a pointer and a reference. at '" + std::to_string(Nam.Line) + "'."));
+                }
+
+                Func.Children.push_back(ReturnType);
+
+                if (Input.size() == 0)
+                {
+                    throw(std::runtime_error("function declaration has no parenthesis. " + std::to_string(Fun.Line)));
+                }
+
+                if (Input[0].Value != "(")
+                {
+                    throw(std::runtime_error("function declaration has no parenthesis. " + std::to_string(Fun.Line)));
+                }
+
+                FLexToken ParenthesisToken = FLexToken(Input[0]);
+                ParenthesisToken.Type = "parenthesis";
+                ParenthesisToken.Value = "parenthesis";
+                FToken Prn(ParenthesisToken);
+                std::vector<FLexToken> Tokes;
+                OC("parenthesis", "(", ")", Tokes, Input);
+                Parse(Prn.Children, Tokes, false, true);
+                std::string Signature = "";
+                for (auto &Toke : Tokes)
+                    Signature += Toke.Value;
+                Signature = ReturnSignature + "(" + Signature + ")";
+
+                Func.Children.push_back(Prn);
+
+                std::vector<FLexToken> BodyTokes;
+
+
+                if (Input[0].Value != "{")
+                    throw(std::runtime_error("function declaration has no body. " + std::to_string(Fun.Line)));
+                OC("braces", "{", "}", BodyTokes, Input);
+                FToken Bdy(FLexToken("body", "body", 0));
+
+                Parse(Bdy.Children, BodyTokes, false, false, false, false, true);
+
+                Func.Children.push_back(Bdy);
+                FToken SignatureToken(Nam);
+                SignatureToken.Token.Value  = Signature;
+                SignatureToken.Token.Type   = "signature";
+                Func.Children.push_back(SignatureToken);
+
+                Tokens.push_back(Func);
             }
-
-            FToken ReturnType(Nam);
-            if (IsPointer > 0)
-                ReturnType.Children.push_back(FToken(FLexToken(std::to_string(IsPointer), "is_pointer", Nam.Line)));
-            if (IsConst)
-                ReturnType.Children.push_back(FToken(FLexToken("is_const", "is_const", Nam.Line)));
-            if (IsReference > 0)
-                ReturnType.Children.push_back(FToken(FLexToken(std::to_string(IsReference), "is_reference", Nam.Line)));
-
-            if (IsReference && IsPointer)
-            {
-                throw(std::runtime_error("'" + Nam.Value + "' cannot be both a pointer and a reference. at '" + std::to_string(Nam.Line) + "'."));
-            }
-
-            Func.Children.push_back(ReturnType);
-
-            if (Input.size() == 0)
-            {
-                throw(std::runtime_error("function declaration has no parenthesis. " + std::to_string(Fun.Line)));
-            }
-
-            if (Input[0].Value != "(")
-            {
-                throw(std::runtime_error("function declaration has no parenthesis. " + std::to_string(Fun.Line)));
-            }
-
-            FLexToken ParenthesisToken = FLexToken(Input[0]);
-            ParenthesisToken.Type = "parenthesis";
-            ParenthesisToken.Value = "parenthesis";
-            FToken Prn(ParenthesisToken);
-            std::vector<FLexToken> Tokes;
-            OC("parenthesis", "(", ")", Tokes, Input);
-            Parse(Prn.Children, Tokes, false, true);
-            std::string Signature = "";
-            for (auto &Toke : Tokes)
-                Signature += Toke.Value;
-            Signature = ReturnSignature + "(" + Signature + ")";
-
-            Func.Children.push_back(Prn);
-
-            std::vector<FLexToken> BodyTokes;
-
-            OC("braces", "{", "}", BodyTokes, Input);
-            FToken Bdy(FLexToken("body", "body", 0));
-
-            Parse(Bdy.Children, BodyTokes, false, false, false, false, true);
-
-            Func.Children.push_back(Bdy);
-            FToken SignatureToken(Nam);
-            SignatureToken.Token.Value  = Signature;
-            SignatureToken.Token.Type   = "signature";
-            Func.Children.push_back(SignatureToken);
-
-            Tokens.push_back(Func);
         }
         else
         if (Input[0].Type == "word")

@@ -57,7 +57,7 @@ Whenever a feature is implemented, (eventually) I would be able to compile the s
     Dosomething:: void() {//function declaration
 	    print(5 * 5)
     }
-    struct:: SomeStruct {//structs do not hold functions
+    SomeStruct:: struct {//structs do not hold functions
 	    Field1: int
 	    Field2: float
 	    FuncPointer:() int(this: SomeStruct, X:int, Y:int) //function pointer

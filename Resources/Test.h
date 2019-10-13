@@ -1,15 +1,15 @@
 script VectorMath
 
-struct:: Vector2{
+Vector2:: struct{
   x: float
   y: float
 }
-struct:: Vector3{
+Vector3:: struct{
   x: float
   y: float
   z: float
 }
-struct:: Vector4{
+Vector4:: struct{
   x: float
   y: float
   z: float
@@ -92,7 +92,7 @@ PrintSomeStuff:: void(i: int) {
 
 import StringLib
 
-struct:: TestyBoy {
+TestyBoy:: struct {
   name: word*
   toString:() word*(this: TestyBoy, num: int, num2: int, s: word*)
 }
