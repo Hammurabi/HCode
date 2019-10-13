@@ -26,6 +26,7 @@ The other reason I created this language is simple, none of the available script
 I needed full control of the internals of the VM and a dynamic, somewhat object oriented language.
 Whenever a feature is implemented, (eventually) I would be able to compile the script into ASM.
 
+    ```java
     import Collections
     import StringLib
     
@@ -91,3 +92,4 @@ Whenever a feature is implemented, (eventually) I would be able to compile the s
         ...
         return Result
     }
+    ```
