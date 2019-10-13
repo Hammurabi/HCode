@@ -42,6 +42,7 @@
 namespace HCode
 {
     typedef long long   HCInteger;
+    typedef long long   HCObject;
     typedef double      HCFloat;
 
     union FPrimitive
@@ -119,6 +120,207 @@ namespace HCode
         inline void         Remove(FHCObject Object) override { HCInteger Index = Object->AsInt(); if (Index < Fields.size()) Fields.erase(Fields.begin() + Index); }
     private:
         std::vector<FHCObject> Fields;
+    };
+
+#define HC_MEMORY_BLOCKSIZE 5120
+
+    struct FDynamicMemoryBlock{
+        unsigned char Block[HC_MEMORY_BLOCKSIZE];
+    };
+
+    class FDynamicHeap
+    {
+    public:
+        FDynamicHeap()
+        {
+            //push two blocks
+            //to allocate space of
+            Append(2);
+        }
+        FDynamicHeap(const FDynamicHeap &O) : Heap(O.Heap), AvailableAddressSpace(O.AvailableAddressSpace), UsedAddressSpace(O.UsedAddressSpace) {}
+
+
+        //complexity O[n^2]
+        HCObject Malloc(unsigned long Size)
+        {
+            if (Size == 0)
+                return HCObject(0);
+
+            unsigned long Available = 0;
+
+            for (auto &Entry : AvailableAddressSpace)
+            {
+                if (Entry.second >= Size)
+                {
+                    Available = Entry.first;
+                    break;
+                }
+            }
+
+            if (Available == 0)
+            {
+                unsigned long Needed = (Size / 5120) + 1;
+                Append(Needed);
+            }
+
+            Available = 0;
+
+            for (auto &Entry : AvailableAddressSpace)
+            {
+                if (Entry.second >= Size)
+                {
+                    Available = Entry.first;
+                    break;
+                }
+            }
+
+            if (Available > 0)
+            {
+                auto Iterator = AvailableAddressSpace.find(Available);
+                unsigned long BlockSize = Iterator->second;
+                AvailableAddressSpace.erase(Iterator);
+
+                unsigned long LeftOver = BlockSize - Size;
+                if (BlockSize > 0)
+                    AvailableAddressSpace[Available + Size] = LeftOver;
+            }
+
+
+            return Available;
+        }
+
+        HCObject Calloc(unsigned long Size, unsigned long Clear)
+        {
+            HCObject Object = Malloc(Size);
+
+            if (Object)
+            {
+                for (unsigned long Index = 0; Index < Clear; Index ++)
+                    SetByte(Object+ Index, 0);
+            }
+
+            return Object;
+        }
+
+        unsigned long HeapSize()
+        {
+            return Heap.size() * 5120;
+        }
+
+        std::string GetString(unsigned long Address)
+        {
+            auto SizeResult = UsedAddressSpace.find(Address);
+            if (SizeResult == UsedAddressSpace.end())
+                return std::string("null");
+
+            std::string String = "";
+            for (unsigned long X = 0; X < SizeResult->second; X ++)
+                String += GetByte(Address + X);
+
+            return String;
+        }
+
+        unsigned char GetByte(unsigned long Address)
+        {
+            return (((unsigned char *) Heap.data()))[Address % HeapSize()];
+        }
+
+        void SetByte(unsigned long Address, unsigned char Byte)
+        {
+            (((unsigned char *) Heap.data()))[Address % HeapSize()] = Byte;
+        }
+
+        unsigned short GetShort(unsigned long Address)
+        {
+            return ((short *) (((unsigned char *) (Heap.data()))))[(Address % HeapSize())];
+        }
+
+        void SetShort(unsigned long Address, short Byte)
+        {
+            ((short *) (((unsigned char *) (Heap.data()))))[(Address % HeapSize())] = Byte;
+        }
+
+
+        unsigned int GetInt(unsigned long Address)
+        {
+            return ((int *) (((unsigned char *) (Heap.data()))))[(Address % HeapSize())];
+        }
+
+        void SetInt(unsigned long Address, int Byte)
+        {
+            ((int *) (((unsigned char *) (Heap.data()))))[(Address % HeapSize())] = Byte;
+        }
+
+
+        unsigned long GetLong(unsigned long Address)
+        {
+            return ((long *) (((unsigned char *) (Heap.data()))))[(Address % HeapSize())];
+        }
+
+        void SetLong(unsigned long Address, long Byte)
+        {
+            ((long *) (((unsigned char *) (Heap.data()))))[(Address % HeapSize())] = Byte;
+        }
+
+        //if heap has more blocks allocated than there are used
+        //then the Heap will be resized.
+        void FixOverfill()
+        {
+            //51200 bytes are not used
+            if (Heap.capacity() - Heap.size() > 10)
+                Heap.shrink_to_fit();
+            Recombine();
+        }
+
+        void Append(unsigned short NumBlocks)
+        {
+            unsigned long CurrentMaxAddress = Heap.size() * 5120;
+            for (unsigned short X = 0; X < NumBlocks; X ++)
+                Heap.push_back(FDynamicMemoryBlock());
+
+            if (CurrentMaxAddress == 0)
+                MakeAvailable(1, NumBlocks * 5119);
+            else
+                MakeAvailable(CurrentMaxAddress, NumBlocks * 5120);
+        }
+
+        void MakeAvailable(unsigned long Address, unsigned long Size)
+        {
+            AvailableAddressSpace[Address] = Size;
+            Recombine();
+        }
+
+        void Recombine()
+        {
+            std::vector<unsigned long> ToRemove;
+
+            for (auto &X : AvailableAddressSpace)
+            {
+                unsigned long Following = X.second + 1;
+                if (AvailableAddressSpace.find(Following) == AvailableAddressSpace.end())
+                    continue;
+
+                ToRemove.push_back(Following);
+                X.second = AvailableAddressSpace[Following];
+            }
+
+            for (auto X : ToRemove)
+                AvailableAddressSpace.erase(X);
+        }
+
+        void Remove(unsigned short NumBlocks)
+        {
+            if (NumBlocks > Heap.size())
+                return;
+
+            Heap.erase(Heap.end() - NumBlocks, Heap.end());
+        }
+
+    private:
+        //using blocks makes
+        std::vector<FDynamicMemoryBlock>        Heap;
+        std::map<unsigned long, unsigned long>  AvailableAddressSpace;
+        std::map<unsigned long, unsigned long>  UsedAddressSpace;
     };
 
     class FStack : public std::stack<FHCObject>
